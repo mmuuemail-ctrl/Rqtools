@@ -17,7 +17,7 @@ if (!webhookSecret) {
 }
 
 const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: "2025-08-27.basil"
+  apiVersion: "2025-02-24.acacia"
 });
 
 function parsePositiveInt(value: unknown, fallback = 0) {
@@ -230,15 +230,15 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       typeof session.customer === "string"
         ? session.customer
         : session.customer && "id" in session.customer
-        ? session.customer.id
-        : null;
+          ? session.customer.id
+          : null;
 
     const subscriptionId =
       typeof session.subscription === "string"
         ? session.subscription
         : session.subscription && "id" in session.subscription
-        ? session.subscription.id
-        : null;
+          ? session.subscription.id
+          : null;
 
     await applyPlanPurchase(userId, rawPlanType, dayCount);
 
@@ -316,8 +316,8 @@ export async function POST(req: Request) {
         typeof invoice.subscription === "string"
           ? invoice.subscription
           : invoice.subscription && "id" in invoice.subscription
-          ? invoice.subscription.id
-          : null;
+            ? invoice.subscription.id
+            : null;
 
       if (subscriptionId) {
         await downgradeBySubscriptionId(subscriptionId);
