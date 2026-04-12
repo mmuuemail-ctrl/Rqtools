@@ -1,0 +1,96 @@
+FINÁLNÍ TEST CHECKLIST
+
+1. AUTH
+- otevři /register
+- vytvoř účet
+- otevři /login
+- přihlas se
+- po loginu musíš být na /
+
+2. ZÁKLAD ÚČTU
+- musí existovat právě 1 QR pro účet
+- na dashboardu musí být:
+  - stav plánu
+  - free views
+  - kreditní body
+  - odhad views z kreditu
+  - upozornění
+  - QR editor
+  - preview
+  - aktivace
+  - historie
+
+3. TEXT OBSAH
+- nastav text
+- ulož
+- otevři veřejný náhled
+- text se musí zobrazit fullscreen
+- při každém validním načtení se musí odečítat free views nebo kredit
+
+4. URL OBSAH
+- bez aktivního předplatného musí být URL blokované
+- s aktivním předplatným musí URL jít uložit
+- veřejný náhled musí přesměrovat
+
+5. MEDIA OBSAH
+- bez aktivního předplatného musí být media blokovaná
+- s aktivním předplatným musí jít nahrát soubor
+- veřejný náhled musí správně zobrazit:
+  - image
+  - video
+  - pdf
+  - txt
+
+6. ANTI-ABUSE
+- 4 validní skeny za 2 minuty z 1 zařízení musí projít
+- další skeny ve stejné minutové logice se nesmí počítat
+- po 60 minutách bez aktivity se limit resetuje
+- blokované skeny nesmí být započítané do historie
+- blokované skeny nesmí odečítat views ani kredit
+
+7. VIEWS A KREDIT
+- nejdřív se musí čerpat free views
+- po jejich vyčerpání se musí čerpat kreditní body
+- když dojde obojí, QR musí spadnout do fallback režimu
+- pokud je nastaven alert threshold, musí se vytvořit upozornění
+- po úplném vyčerpání se musí vytvořit upozornění o neaktivním QR
+
+8. AKTIVACE
+- days: po zadaném počtu dní musí QR přestat být aktivní
+- subscription_period:
+  - text funguje
+  - url/media fungují jen po dobu aktivního předplatného
+- unlimited:
+  - text může fungovat stále, dokud jsou views nebo kredit
+  - url/media jen pokud běží předplatné a jsou views nebo kredit
+
+9. LIMIT MAX VIEWS
+- pokud je zapnutý max views limit, po dosažení limitu musí QR spadnout do fallback textu
+- musí vzniknout validní upozornění
+
+10. REGENERACE QR
+- potvrzovací popup se musí zobrazit
+- po regeneraci musí být public_code nový
+- starý public URL musí přestat fungovat
+- historie a total_valid_views musí zůstat
+
+11. HISTORIE
+- od–do maximálně 1 rok zpět
+- vrací jen validní skeny
+- výsledné číslo musí odpovídat counted eventům ve view_events
+
+12. STRIPE
+- koupě plánu musí nastavit:
+  - plan_type
+  - subscription_status = active
+  - billing_period
+  - subscription_expires_at
+  - free_views_remaining
+- koupě kreditu musí navýšit credit_points_balance
+- duplicate webhook event se nesmí propsat dvakrát
+- invoice.payment_failed a customer.subscription.deleted musí downgradeovat účet na free
+
+13. STORAGE
+- uploadnuté media musí být v bucketu files
+- při změně media se má starý soubor odstranit
+- při přepnutí z media na text/url se má starý soubor odstranit
