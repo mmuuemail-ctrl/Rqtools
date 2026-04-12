@@ -1,0 +1,42 @@
+DEPLOY CHECKLIST
+
+1. ENV
+Na Vercelu nastav:
+- NEXT_PUBLIC_BASE_URL
+- NEXT_PUBLIC_SUPABASE_URL
+- NEXT_PUBLIC_SUPABASE_ANON_KEY
+- SUPABASE_SERVICE_ROLE_KEY
+- STRIPE_SECRET_KEY
+- STRIPE_WEBHOOK_SECRET
+
+2. SUPABASE
+- spusť docs/sql/001_schema.sql
+- spusť docs/sql/002_functions.sql
+- vytvoř public bucket:
+  - files
+
+3. STRIPE
+- nastav webhook endpoint:
+  /api/stripe/webhook
+- přidej eventy:
+  - checkout.session.completed
+  - customer.subscription.deleted
+  - invoice.payment_failed
+
+4. DOMAIN
+- NEXT_PUBLIC_BASE_URL musí být přesná produkční doména
+- public QR preview pak poběží přes:
+  /view/{public_code}
+
+5. BUILD
+- npm install
+- npm run build
+
+6. KONTROLA PO NASAZENÍ
+- registrace vytvoří profile + 1 QR
+- login funguje
+- dashboard se načte
+- save QR funguje
+- public QR funguje
+- stripe checkout otevře platební stránku
+- webhook připíše změny
