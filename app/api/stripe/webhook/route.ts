@@ -1,12 +1,14 @@
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { APP_CONFIG } from "../../../../lib/app-config";
-import { supabaseAdmin } from "../../../../lib/supabase-admin";
 
 export const runtime = "nodejs";
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!stripeSecretKey) {
   throw new Error("Missing STRIPE_SECRET_KEY");
@@ -16,9 +18,19 @@ if (!webhookSecret) {
   throw new Error("Missing STRIPE_WEBHOOK_SECRET");
 }
 
+if (!supabaseUrl) {
+  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
+}
+
+if (!serviceRoleKey) {
+  throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
+}
+
 const stripe = new Stripe(stripeSecretKey, {
   apiVersion: "2025-02-24.acacia"
 });
+
+const supabase = createClient(supabaseUrl, serviceRoleKey);
 
 function parsePositiveInt(value: unknown, fallback = 0) {
   const parsed = Number(value);
@@ -60,7 +72,7 @@ function getFutureBaseDate(currentIso: string | null) {
 }
 
 async function markEventStarted(eventId: string, eventType: string) {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from("stripe_webhook_events")
     .insert({
       event_id: eventId,
@@ -70,18 +82,18 @@ async function markEventStarted(eventId: string, eventType: string) {
     .maybeSingle();
 
   if (error) {
-    if ((error as { code?: string }).code === "23505") {
+    if (error.code === "23505") {
       return false;
     }
 
-    throw new Error(error.message);
+    throw new Error(`stripe_webhook_events insert failed: ${error.message}`);
   }
 
   return !!data;
 }
 
 async function getProfile(userId: string) {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from("profiles")
     .select(`
       id,
@@ -96,7 +108,7 @@ async function getProfile(userId: string) {
     .single();
 
   if (error || !data) {
-    throw new Error(error?.message || "Profil nenalezen.");
+    throw new Error(error?.message || "Profile not found.");
   }
 
   return data;
@@ -116,19 +128,15 @@ async function applyPlanPurchase(
   if (planType === "day") {
     expiresAt = addDays(base, dayCount).toISOString();
     freeViews = APP_CONFIG.plans.day.includedFreeViews * dayCount;
-  }
-
-  if (planType === "month") {
+  } else if (planType === "month") {
     expiresAt = addMonths(base, 1).toISOString();
     freeViews = APP_CONFIG.plans.month.includedFreeViews;
-  }
-
-  if (planType === "year") {
+  } else {
     expiresAt = addYears(base, 1).toISOString();
     freeViews = APP_CONFIG.plans.year.includedFreeViews;
   }
 
-  const { error } = await supabaseAdmin
+  const { error } = await supabase
     .from("profiles")
     .update({
       plan_type: planType,
@@ -140,7 +148,7 @@ async function applyPlanPurchase(
     .eq("id", userId);
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(`profiles update failed: ${error.message}`);
   }
 }
 
@@ -152,7 +160,7 @@ async function applyCreditPurchase(
   const profile = await getProfile(userId);
   const nextBalance = Number(profile.credit_points_balance || 0) + creditPoints;
 
-  const updateRes = await supabaseAdmin
+  const updateRes = await supabase
     .from("profiles")
     .update({
       credit_points_balance: nextBalance
@@ -160,10 +168,10 @@ async function applyCreditPurchase(
     .eq("id", userId);
 
   if (updateRes.error) {
-    throw new Error(updateRes.error.message);
+    throw new Error(`credit balance update failed: ${updateRes.error.message}`);
   }
 
-  const insertRes = await supabaseAdmin
+  const insertRes = await supabase
     .from("credit_purchases")
     .insert({
       user_id: userId,
@@ -173,26 +181,26 @@ async function applyCreditPurchase(
     });
 
   if (insertRes.error) {
-    throw new Error(insertRes.error.message);
+    throw new Error(`credit_purchases insert failed: ${insertRes.error.message}`);
   }
 }
 
 async function downgradeBySubscriptionId(stripeSubscriptionId: string) {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from("profiles")
     .select("id")
     .eq("stripe_subscription_id", stripeSubscriptionId)
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(`find subscription profile failed: ${error.message}`);
   }
 
   if (!data?.id) {
     return;
   }
 
-  const updateRes = await supabaseAdmin
+  const updateRes = await supabase
     .from("profiles")
     .update({
       plan_type: "free",
@@ -205,7 +213,7 @@ async function downgradeBySubscriptionId(stripeSubscriptionId: string) {
     .eq("id", data.id);
 
   if (updateRes.error) {
-    throw new Error(updateRes.error.message);
+    throw new Error(`downgrade failed: ${updateRes.error.message}`);
   }
 }
 
@@ -223,26 +231,26 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     const dayCount = parsePositiveInt(metadata.day_count, 1);
 
     if (rawPlanType !== "day" && rawPlanType !== "month" && rawPlanType !== "year") {
-      throw new Error("Invalid plan_type.");
+      throw new Error(`Invalid plan_type: ${rawPlanType}`);
     }
 
     const customerId =
       typeof session.customer === "string"
         ? session.customer
         : session.customer && "id" in session.customer
-          ? session.customer.id
-          : null;
+        ? session.customer.id
+        : null;
 
     const subscriptionId =
       typeof session.subscription === "string"
         ? session.subscription
         : session.subscription && "id" in session.subscription
-          ? session.subscription.id
-          : null;
+        ? session.subscription.id
+        : null;
 
     await applyPlanPurchase(userId, rawPlanType, dayCount);
 
-    const updateRes = await supabaseAdmin
+    const updateRes = await supabase
       .from("profiles")
       .update({
         stripe_customer_id: customerId,
@@ -251,7 +259,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       .eq("id", userId);
 
     if (updateRes.error) {
-      throw new Error(updateRes.error.message);
+      throw new Error(`stripe ids update failed: ${updateRes.error.message}`);
     }
 
     return;
@@ -316,17 +324,21 @@ export async function POST(req: Request) {
         typeof invoice.subscription === "string"
           ? invoice.subscription
           : invoice.subscription && "id" in invoice.subscription
-            ? invoice.subscription.id
-            : null;
+          ? invoice.subscription.id
+          : null;
 
       if (subscriptionId) {
         await downgradeBySubscriptionId(subscriptionId);
       }
     }
 
-    return NextResponse.json({ received: true });
+    return NextResponse.json({ received: true, type: event.type });
   } catch (error) {
     console.error("Stripe webhook processing error:", error);
-    return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });
+
+    const message =
+      error instanceof Error ? error.message : "Webhook processing failed";
+
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
