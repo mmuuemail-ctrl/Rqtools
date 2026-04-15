@@ -1,12 +1,14 @@
 create or replace function public.generate_public_qr_code()
 returns text
 language plpgsql
+security definer
+set search_path = public, extensions
 as $$
 declare
   v_code text;
 begin
   loop
-    v_code := encode(gen_random_bytes(18), 'hex');
+    v_code := encode(extensions.gen_random_bytes(18), 'hex');
 
     exit when not exists (
       select 1
@@ -22,6 +24,7 @@ $$;
 create or replace function public.touch_updated_at()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.updated_at := now();
@@ -45,6 +48,7 @@ create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
+set search_path = public, auth, extensions
 as $$
 begin
   insert into public.profiles (
@@ -102,6 +106,10 @@ begin
   );
 
   return new;
+exception
+  when others then
+    raise log 'handle_new_user failed for user %: %', new.id, sqlerrm;
+    raise;
 end;
 $$;
 
@@ -109,7 +117,7 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
 after insert on auth.users
 for each row
-execute procedure public.handle_new_user();
+execute function public.handle_new_user();
 
 create or replace function public.create_user_alert(
   p_user_id uuid,
@@ -118,6 +126,8 @@ create or replace function public.create_user_alert(
 )
 returns void
 language plpgsql
+security definer
+set search_path = public
 as $$
 begin
   insert into public.alerts (
@@ -139,6 +149,8 @@ create or replace function public.user_has_active_subscription(
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select
     case
