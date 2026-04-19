@@ -80,7 +80,7 @@ function formatDate(value: string | null) {
   return d.toLocaleDateString("cs-CZ");
 }
 
-function truncateText(value: string, max = 140) {
+function truncateText(value: string, max = 180) {
   if (!value) return "";
   return value.length > max ? `${value.slice(0, max)}...` : value;
 }
@@ -113,6 +113,31 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
+  const [scale, setScale] = useState(1);
+
+  const BASE_WIDTH = 720;
+  const BASE_HEIGHT = 1480;
+
+  useEffect(() => {
+    const updateScale = () => {
+      const padding = 20;
+      const availableWidth = window.innerWidth - padding * 2;
+      const availableHeight = window.innerHeight - padding * 2;
+      const nextScale = Math.min(
+        availableWidth / BASE_WIDTH,
+        availableHeight / BASE_HEIGHT,
+        1
+      );
+      setScale(nextScale);
+    };
+
+    updateScale();
+    window.addEventListener("resize", updateScale);
+
+    return () => {
+      window.removeEventListener("resize", updateScale);
+    };
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -160,8 +185,8 @@ export default function DashboardPage() {
 
       try {
         await QRCode.toCanvas(qrCanvasRef.current, publicViewUrl, {
-          width: 240,
-          margin: 1
+          width: 250,
+          margin: 2
         });
       } catch (error) {
         console.error("QR render error:", error);
@@ -185,7 +210,7 @@ export default function DashboardPage() {
     if (!profileData) return "";
 
     if (profileData.qrCode.content_type === "text") {
-      return truncateText(profileData.qrCode.text_content || "Zatím není nastaven text.", 180);
+      return truncateText(profileData.qrCode.text_content || "Zatím není nastaven text.");
     }
 
     if (profileData.qrCode.content_type === "url") {
@@ -288,95 +313,110 @@ export default function DashboardPage() {
 
   return (
     <main style={styles.page}>
-      <div style={styles.container}>
-        <div style={styles.topRow}>
-          <button
-            type="button"
-            style={{ ...styles.cardButton, ...styles.menuCard }}
-            onClick={() => setMessage("Menu uděláme v dalším kroku.")}
-          >
-            menu
-          </button>
+      <div
+        style={{
+          ...styles.fitBox,
+          width: BASE_WIDTH * scale,
+          height: BASE_HEIGHT * scale
+        }}
+      >
+        <div
+          style={{
+            ...styles.board,
+            width: BASE_WIDTH,
+            height: BASE_HEIGHT,
+            transform: `scale(${scale})`
+          }}
+        >
+          <div style={styles.topRow}>
+            <button
+              type="button"
+              style={{ ...styles.cardButton, ...styles.menuCard }}
+              onClick={() => setMessage("Menu uděláme v dalším kroku.")}
+            >
+              menu
+            </button>
 
-          <div style={{ ...styles.infoCard, ...styles.creditCard }}>
-            <div style={styles.infoSmall}>Kredit</div>
-            <div style={styles.creditValue}>
-              {Math.floor(profileData.profile.credit_points_balance).toLocaleString()}
+            <div style={{ ...styles.infoCard, ...styles.creditCard }}>
+              <div style={styles.infoSmall}>Kredit</div>
+              <div style={styles.creditValue}>
+                {Math.floor(profileData.profile.credit_points_balance).toLocaleString()}
+              </div>
+            </div>
+
+            <div style={{ ...styles.infoCard, ...styles.planCard }}>
+              <div style={styles.infoMedium}>Predplatne do kdy</div>
+              <div style={styles.planValue}>{currentPlanText}</div>
             </div>
           </div>
 
-          <div style={{ ...styles.infoCard, ...styles.planCard }}>
-            <div style={styles.infoMedium}>Predplatne do kdy</div>
-            <div style={styles.planValue}>{currentPlanText}</div>
-          </div>
+          <section style={styles.wideCard}>
+            <div style={styles.viewsRow}>
+              <span>views k dispozici</span>
+              <strong>{getViewsAvailable(profileData, profileData.qrCode.content_type).toLocaleString()}</strong>
+            </div>
+
+            <div style={styles.viewsRow}>
+              <span>Z toho zdarma</span>
+              <strong>{profileData.profile.free_views_remaining.toLocaleString()}</strong>
+            </div>
+          </section>
+
+          <section style={styles.buttonRow}>
+            <button
+              type="button"
+              style={styles.bigOptionButton}
+              onClick={() => setMessage("Obsah Text budeme řešit v dalším kroku přes menu.")}
+            >
+              text
+            </button>
+
+            <button
+              type="button"
+              style={styles.bigOptionButton}
+              onClick={() => setMessage("Obsah URL budeme řešit v dalším kroku přes menu.")}
+            >
+              url
+            </button>
+
+            <button
+              type="button"
+              style={styles.bigOptionButton}
+              onClick={() => setMessage("Obsah Media budeme řešit v dalším kroku přes menu.")}
+            >
+              media
+            </button>
+          </section>
+
+          <section style={styles.previewCard}>
+            <div style={styles.previewTitle}>nahled</div>
+            <div style={styles.previewContent}>{previewText}</div>
+          </section>
+
+          <section style={styles.qrCard}>
+            <div style={styles.qrCanvasWrap}>
+              <canvas ref={qrCanvasRef} />
+            </div>
+          </section>
+
+          <section style={styles.bottomButtons}>
+            <button type="button" style={styles.smallActionButton} onClick={handleCopyLink}>
+              Copy qr link
+            </button>
+
+            <button type="button" style={styles.smallActionButton} onClick={handlePrintQr}>
+              Print qr
+            </button>
+
+            <button type="button" style={styles.smallActionButton} onClick={handleDownloadQr}>
+              Download Qr kod
+            </button>
+          </section>
+
+          <button type="button" style={styles.logoutButton} onClick={handleLogout}>
+            odhlasit
+          </button>
         </div>
-
-        <section style={styles.wideCard}>
-          <div style={styles.viewsRow}>
-            <span>views k dispozici :</span>
-            <strong>{getViewsAvailable(profileData, profileData.qrCode.content_type).toLocaleString()}</strong>
-          </div>
-
-          <div style={styles.viewsRow}>
-            <span>Z toho zdarma :</span>
-            <strong>{profileData.profile.free_views_remaining.toLocaleString()}</strong>
-          </div>
-        </section>
-
-        <section style={styles.buttonRow}>
-          <button
-            type="button"
-            style={styles.bigOptionButton}
-            onClick={() => setMessage("Obsah Text budeme řešit v dalším kroku přes menu.")}
-          >
-            text
-          </button>
-
-          <button
-            type="button"
-            style={styles.bigOptionButton}
-            onClick={() => setMessage("Obsah URL budeme řešit v dalším kroku přes menu.")}
-          >
-            url
-          </button>
-
-          <button
-            type="button"
-            style={styles.bigOptionButton}
-            onClick={() => setMessage("Obsah Media budeme řešit v dalším kroku přes menu.")}
-          >
-            media
-          </button>
-        </section>
-
-        <section style={styles.previewCard}>
-          <div style={styles.previewTitle}>nahled</div>
-          <div style={styles.previewContent}>{previewText}</div>
-        </section>
-
-        <section style={styles.qrCard}>
-          <div style={styles.qrCanvasWrap}>
-            <canvas ref={qrCanvasRef} />
-          </div>
-        </section>
-
-        <section style={styles.bottomButtons}>
-          <button type="button" style={styles.smallActionButton} onClick={handleCopyLink}>
-            Copy qr link
-          </button>
-
-          <button type="button" style={styles.smallActionButton} onClick={handlePrintQr}>
-            Print qr
-          </button>
-
-          <button type="button" style={styles.smallActionButton} onClick={handleDownloadQr}>
-            Download Qr kod
-          </button>
-        </section>
-
-        <button type="button" style={styles.logoutButton} onClick={handleLogout}>
-          odhlasit
-        </button>
       </div>
 
       {message ? <div style={styles.messageBox}>{message}</div> : null}
@@ -386,49 +426,63 @@ export default function DashboardPage() {
 
 const styles: Record<string, CSSProperties> = {
   page: {
+    width: "100%",
     height: "100vh",
+    minHeight: "100vh",
     overflow: "hidden",
     background: "#ead790",
-    padding: 14,
-    boxSizing: "border-box"
+    padding: 10,
+    boxSizing: "border-box",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center"
   },
-  container: {
-    width: "100%",
-    maxWidth: 1180,
-    height: "100%",
-    margin: "0 auto",
-    display: "grid",
-    gridTemplateRows: "auto auto auto minmax(0, 1fr) auto auto auto",
-    gap: 14
+  fitBox: {
+    position: "relative",
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "center"
+  },
+  board: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    transformOrigin: "top left",
+    background: "#ead790",
+    padding: 24,
+    boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+    gap: 22,
+    overflow: "hidden"
   },
   topRow: {
     display: "grid",
-    gridTemplateColumns: "120px minmax(0, 1fr) minmax(0, 1fr)",
-    gap: 14,
-    alignItems: "stretch",
-    minHeight: 92
+    gridTemplateColumns: "120px 1fr 1fr",
+    gap: 18,
+    alignItems: "stretch"
   },
   cardButton: {
-    border: "5px solid #000000",
-    borderRadius: 24,
+    border: "6px solid #000000",
+    borderRadius: 26,
     background: "#c8d7e7",
     cursor: "pointer",
-    fontSize: 24,
+    minHeight: 122,
+    fontSize: 28,
     fontWeight: 500
   },
   menuCard: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    textTransform: "lowercase",
-    minHeight: 92
+    textTransform: "lowercase"
   },
   infoCard: {
-    border: "5px solid #000000",
-    borderRadius: 24,
+    border: "6px solid #000000",
+    borderRadius: 26,
     background: "#c8d7e7",
-    minHeight: 92,
-    padding: 10,
+    minHeight: 122,
+    padding: 14,
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
@@ -439,100 +493,97 @@ const styles: Record<string, CSSProperties> = {
   creditCard: {},
   planCard: {},
   infoSmall: {
-    fontSize: 18,
+    fontSize: 28,
     lineHeight: 1.1,
-    marginBottom: 4
+    marginBottom: 6
   },
   infoMedium: {
-    fontSize: 18,
+    fontSize: 24,
     lineHeight: 1.15,
-    marginBottom: 4
+    marginBottom: 8
   },
   creditValue: {
-    fontSize: 34,
+    fontSize: 44,
     fontWeight: 800,
     lineHeight: 1
   },
   planValue: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 700,
-    lineHeight: 1.15
+    lineHeight: 1.2
   },
   wideCard: {
-    border: "5px solid #000000",
-    borderRadius: 24,
+    border: "6px solid #000000",
+    borderRadius: 28,
     background: "#c8d7e7",
-    padding: 14,
+    padding: 18,
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
-    gap: 10
+    gap: 16
   },
   viewsRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 14,
-    fontSize: 22,
+    gap: 16,
+    fontSize: 28,
     lineHeight: 1.2,
     flexWrap: "wrap"
   },
   buttonRow: {
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: 14,
-    minHeight: 88
+    gap: 18
   },
   bigOptionButton: {
-    minHeight: 88,
-    border: "5px solid #000000",
-    borderRadius: 24,
+    minHeight: 132,
+    border: "6px solid #000000",
+    borderRadius: 28,
     background: "#c8d7e7",
-    fontSize: 32,
+    fontSize: 52,
     fontWeight: 800,
     textTransform: "lowercase",
     cursor: "pointer"
   },
   previewCard: {
     width: "100%",
-    maxWidth: 860,
+    maxWidth: 500,
     margin: "0 auto",
-    minHeight: 0,
-    height: "100%",
-    border: "5px solid #000000",
-    borderRadius: 42,
+    minHeight: 380,
+    border: "6px solid #000000",
+    borderRadius: 60,
     background: "#c8d7e7",
-    padding: 18,
+    padding: 24,
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
     justifyContent: "center",
     alignItems: "center",
     textAlign: "center",
-    gap: 14,
-    overflow: "hidden"
+    gap: 24
   },
   previewTitle: {
-    fontSize: 50,
+    fontSize: 72,
     fontWeight: 800,
     lineHeight: 1
   },
   previewContent: {
-    fontSize: 20,
-    fontWeight: 600,
-    lineHeight: 1.35,
+    fontSize: 28,
+    fontWeight: 700,
+    lineHeight: 1.4,
     whiteSpace: "pre-wrap",
-    wordBreak: "break-word",
-    overflow: "hidden"
+    wordBreak: "break-word"
   },
   qrCard: {
     width: "100%",
-    maxWidth: 300,
+    maxWidth: 320,
     margin: "0 auto",
-    border: "5px solid #000000",
-    borderRadius: 30,
+    minHeight: 300,
+    border: "6px solid #000000",
+    borderRadius: 42,
     background: "#c8d7e7",
-    padding: 12,
+    padding: 22,
     boxSizing: "border-box",
     display: "flex",
     alignItems: "center",
@@ -543,59 +594,61 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
     background: "#ffffff",
-    padding: 8,
-    borderRadius: 16
+    padding: 0,
+    borderRadius: 16,
+    width: 250,
+    height: 250,
+    overflow: "hidden"
   },
   bottomButtons: {
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: 14,
-    minHeight: 74
+    gap: 18
   },
   smallActionButton: {
-    minHeight: 74,
-    border: "5px solid #000000",
-    borderRadius: 22,
+    minHeight: 104,
+    border: "6px solid #000000",
+    borderRadius: 24,
     background: "#c8d7e7",
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: 800,
     lineHeight: 1.15,
     cursor: "pointer",
-    padding: 8
+    padding: 10
   },
   logoutButton: {
     width: "100%",
-    minHeight: 82,
-    border: "5px solid #000000",
-    borderRadius: 22,
+    minHeight: 98,
+    border: "6px solid #000000",
+    borderRadius: 24,
     background: "#c8d7e7",
-    fontSize: 28,
+    fontSize: 38,
     fontWeight: 800,
     textTransform: "lowercase",
     cursor: "pointer"
   },
   loadingCard: {
     maxWidth: 540,
-    margin: "120px auto",
-    border: "5px solid #000000",
-    borderRadius: 24,
+    margin: "0 auto",
+    border: "6px solid #000000",
+    borderRadius: 28,
     background: "#c8d7e7",
-    padding: 24,
-    fontSize: 24,
+    padding: 28,
+    fontSize: 28,
     fontWeight: 700,
     textAlign: "center"
   },
   messageBox: {
     position: "fixed",
-    right: 14,
-    bottom: 14,
-    maxWidth: 320,
-    borderRadius: 16,
+    right: 18,
+    bottom: 18,
+    maxWidth: 360,
+    borderRadius: 18,
     background: "#111827",
     color: "#ffffff",
-    padding: "12px 14px",
-    fontSize: 13,
-    lineHeight: 1.4,
+    padding: "14px 16px",
+    fontSize: 14,
+    lineHeight: 1.45,
     boxShadow: "0 14px 35px rgba(0,0,0,0.22)",
     zIndex: 50
   }
