@@ -2,7 +2,7 @@
 
 import { CSSProperties, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "../../lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { APP_CONFIG } from "../../lib/app-config";
 import { formatUsd } from "../../lib/pricing";
 import {
