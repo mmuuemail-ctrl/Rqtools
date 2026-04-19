@@ -635,7 +635,7 @@ export default function DashboardPage() {
   }
 
   const currentPlan = profileData.subscriptionPlans.currentPlan;
-  const futurePlans = profileData.subscriptionPlans.futurePlans;
+  const futurePlans = profileData?.subscriptionPlans?.futurePlans || [];
 
   return (
     <main style={styles.page}>
