@@ -112,7 +112,6 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const [userId, setUserId] = useState("");
   const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
 
   useEffect(() => {
@@ -127,8 +126,6 @@ export default function DashboardPage() {
           router.push("/login");
           return;
         }
-
-        setUserId(currentUserId);
 
         const res = await fetch(`/api/profile?userId=${encodeURIComponent(currentUserId)}`, {
           cache: "no-store"
@@ -163,8 +160,8 @@ export default function DashboardPage() {
 
       try {
         await QRCode.toCanvas(qrCanvasRef.current, publicViewUrl, {
-          width: 260,
-          margin: 2
+          width: 240,
+          margin: 1
         });
       } catch (error) {
         console.error("QR render error:", error);
@@ -253,18 +250,13 @@ export default function DashboardPage() {
               height: 6cm;
               object-fit: contain;
               display: block;
-              margin: 0 auto 12px auto;
-            }
-            .label {
-              font-size: 16px;
-              font-weight: 700;
+              margin: 0 auto;
             }
           </style>
         </head>
         <body>
           <div class="wrap">
             <img src="${dataUrl}" alt="QR code" />
-            <div class="label">${profileData?.qrCode.title || "Můj QR kód"}</div>
           </div>
           <script>
             window.onload = function () {
@@ -314,19 +306,19 @@ export default function DashboardPage() {
           </div>
 
           <div style={{ ...styles.infoCard, ...styles.planCard }}>
-            <div style={styles.infoMedium}>Předplatné do kdy</div>
+            <div style={styles.infoMedium}>Predplatne do kdy</div>
             <div style={styles.planValue}>{currentPlanText}</div>
           </div>
         </div>
 
         <section style={styles.wideCard}>
           <div style={styles.viewsRow}>
-            <span>views k dispozici</span>
+            <span>views k dispozici :</span>
             <strong>{getViewsAvailable(profileData, profileData.qrCode.content_type).toLocaleString()}</strong>
           </div>
 
           <div style={styles.viewsRow}>
-            <span>Z toho zdarma</span>
+            <span>Z toho zdarma :</span>
             <strong>{profileData.profile.free_views_remaining.toLocaleString()}</strong>
           </div>
         </section>
@@ -363,7 +355,6 @@ export default function DashboardPage() {
         </section>
 
         <section style={styles.qrCard}>
-          <div style={styles.qrTitle}>Qr kod</div>
           <div style={styles.qrCanvasWrap}>
             <canvas ref={qrCanvasRef} />
           </div>
@@ -395,46 +386,49 @@ export default function DashboardPage() {
 
 const styles: Record<string, CSSProperties> = {
   page: {
-    minHeight: "100vh",
+    height: "100vh",
+    overflow: "hidden",
     background: "#ead790",
-    padding: 20,
+    padding: 14,
     boxSizing: "border-box"
   },
   container: {
     width: "100%",
-    maxWidth: 1200,
+    maxWidth: 1180,
+    height: "100%",
     margin: "0 auto",
-    display: "flex",
-    flexDirection: "column",
-    gap: 20
+    display: "grid",
+    gridTemplateRows: "auto auto auto minmax(0, 1fr) auto auto auto",
+    gap: 14
   },
   topRow: {
     display: "grid",
-    gridTemplateColumns: "140px minmax(220px, 1fr) minmax(220px, 1fr)",
-    gap: 20,
-    alignItems: "stretch"
+    gridTemplateColumns: "120px minmax(0, 1fr) minmax(0, 1fr)",
+    gap: 14,
+    alignItems: "stretch",
+    minHeight: 92
   },
   cardButton: {
-    border: "6px solid #000000",
-    borderRadius: 28,
+    border: "5px solid #000000",
+    borderRadius: 24,
     background: "#c8d7e7",
     cursor: "pointer",
-    minHeight: 120,
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 500
   },
   menuCard: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    textTransform: "lowercase"
+    textTransform: "lowercase",
+    minHeight: 92
   },
   infoCard: {
-    border: "6px solid #000000",
-    borderRadius: 28,
+    border: "5px solid #000000",
+    borderRadius: 24,
     background: "#c8d7e7",
-    minHeight: 120,
-    padding: 14,
+    minHeight: 92,
+    padding: 10,
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
@@ -445,141 +439,137 @@ const styles: Record<string, CSSProperties> = {
   creditCard: {},
   planCard: {},
   infoSmall: {
-    fontSize: 26,
+    fontSize: 18,
     lineHeight: 1.1,
-    marginBottom: 6
+    marginBottom: 4
   },
   infoMedium: {
-    fontSize: 24,
+    fontSize: 18,
     lineHeight: 1.15,
-    marginBottom: 8
+    marginBottom: 4
   },
   creditValue: {
-    fontSize: 40,
+    fontSize: 34,
     fontWeight: 800,
     lineHeight: 1
   },
   planValue: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: 700,
-    lineHeight: 1.2
+    lineHeight: 1.15
   },
   wideCard: {
-    border: "6px solid #000000",
-    borderRadius: 28,
+    border: "5px solid #000000",
+    borderRadius: 24,
     background: "#c8d7e7",
-    padding: 18,
+    padding: 14,
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
-    gap: 16
+    gap: 10
   },
   viewsRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 16,
-    fontSize: 30,
+    gap: 14,
+    fontSize: 22,
     lineHeight: 1.2,
     flexWrap: "wrap"
   },
   buttonRow: {
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: 20
+    gap: 14,
+    minHeight: 88
   },
   bigOptionButton: {
-    minHeight: 140,
-    border: "6px solid #000000",
-    borderRadius: 28,
+    minHeight: 88,
+    border: "5px solid #000000",
+    borderRadius: 24,
     background: "#c8d7e7",
-    fontSize: 56,
+    fontSize: 32,
     fontWeight: 800,
     textTransform: "lowercase",
     cursor: "pointer"
   },
   previewCard: {
     width: "100%",
-    maxWidth: 760,
+    maxWidth: 860,
     margin: "0 auto",
-    minHeight: 360,
-    border: "6px solid #000000",
-    borderRadius: 56,
+    minHeight: 0,
+    height: "100%",
+    border: "5px solid #000000",
+    borderRadius: 42,
     background: "#c8d7e7",
-    padding: 24,
+    padding: 18,
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
     justifyContent: "center",
     alignItems: "center",
     textAlign: "center",
-    gap: 24
+    gap: 14,
+    overflow: "hidden"
   },
   previewTitle: {
-    fontSize: 72,
+    fontSize: 50,
     fontWeight: 800,
     lineHeight: 1
   },
   previewContent: {
-    fontSize: 26,
+    fontSize: 20,
     fontWeight: 600,
-    lineHeight: 1.45,
+    lineHeight: 1.35,
     whiteSpace: "pre-wrap",
-    wordBreak: "break-word"
+    wordBreak: "break-word",
+    overflow: "hidden"
   },
   qrCard: {
     width: "100%",
-    maxWidth: 500,
+    maxWidth: 300,
     margin: "0 auto",
-    minHeight: 360,
-    border: "6px solid #000000",
-    borderRadius: 42,
+    border: "5px solid #000000",
+    borderRadius: 30,
     background: "#c8d7e7",
-    padding: 24,
+    padding: 12,
     boxSizing: "border-box",
     display: "flex",
-    flexDirection: "column",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 20
-  },
-  qrTitle: {
-    fontSize: 58,
-    fontWeight: 800,
-    lineHeight: 1,
-    textAlign: "center"
+    justifyContent: "center"
   },
   qrCanvasWrap: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     background: "#ffffff",
-    padding: 12,
-    borderRadius: 20
+    padding: 8,
+    borderRadius: 16
   },
   bottomButtons: {
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: 20
+    gap: 14,
+    minHeight: 74
   },
   smallActionButton: {
-    minHeight: 120,
-    border: "6px solid #000000",
-    borderRadius: 24,
+    minHeight: 74,
+    border: "5px solid #000000",
+    borderRadius: 22,
     background: "#c8d7e7",
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 800,
     lineHeight: 1.15,
     cursor: "pointer",
-    padding: 10
+    padding: 8
   },
   logoutButton: {
     width: "100%",
-    minHeight: 110,
-    border: "6px solid #000000",
-    borderRadius: 24,
+    minHeight: 82,
+    border: "5px solid #000000",
+    borderRadius: 22,
     background: "#c8d7e7",
-    fontSize: 38,
+    fontSize: 28,
     fontWeight: 800,
     textTransform: "lowercase",
     cursor: "pointer"
@@ -587,53 +577,26 @@ const styles: Record<string, CSSProperties> = {
   loadingCard: {
     maxWidth: 540,
     margin: "120px auto",
-    border: "6px solid #000000",
-    borderRadius: 28,
+    border: "5px solid #000000",
+    borderRadius: 24,
     background: "#c8d7e7",
-    padding: 28,
-    fontSize: 28,
+    padding: 24,
+    fontSize: 24,
     fontWeight: 700,
     textAlign: "center"
   },
   messageBox: {
     position: "fixed",
-    right: 18,
-    bottom: 18,
-    maxWidth: 360,
-    borderRadius: 18,
+    right: 14,
+    bottom: 14,
+    maxWidth: 320,
+    borderRadius: 16,
     background: "#111827",
     color: "#ffffff",
-    padding: "14px 16px",
-    fontSize: 14,
-    lineHeight: 1.45,
+    padding: "12px 14px",
+    fontSize: 13,
+    lineHeight: 1.4,
     boxShadow: "0 14px 35px rgba(0,0,0,0.22)",
     zIndex: 50
   }
 };
-
-if (typeof window !== "undefined") {
-  const styleId = "rqtools-dashboard-mobile-styles";
-
-  if (!document.getElementById(styleId)) {
-    const style = document.createElement("style");
-    style.id = styleId;
-    style.innerHTML = `
-      @media (max-width: 900px) {
-        main[style] {
-          padding: 14px !important;
-        }
-      }
-
-      @media (max-width: 860px) {
-        div[style*="grid-template-columns: 140px minmax(220px, 1fr) minmax(220px, 1fr)"] {
-          grid-template-columns: 1fr !important;
-        }
-
-        div[style*="grid-template-columns: repeat(3, minmax(0, 1fr))"] {
-          grid-template-columns: 1fr !important;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-}
