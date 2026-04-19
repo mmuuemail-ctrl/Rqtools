@@ -2,8 +2,8 @@
 
 import { CSSProperties, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
-import { APP_CONFIG } from "../../lib/app-config";
+import { supabase } from "../../lib/supabase";
+import { APP_CONFIG, type PlanType } from "../../lib/app-config";
 import { formatUsd } from "../../lib/pricing";
 import {
   getAvailableLanguages,
@@ -14,8 +14,6 @@ import {
   type LanguageDictionary,
   type LanguageMeta
 } from "../../lib/i18n";
-
-type PlanMode = "day" | "month" | "year";
 
 type ProfileResponse = {
   profile: {
@@ -78,6 +76,8 @@ type ProfileResponse = {
   };
 };
 
+type PlanMode = "day" | "month" | "year";
+
 function parsePositiveInt(value: string, fallback = 1) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -92,11 +92,10 @@ function formatDate(value: string | null) {
   return d.toLocaleString("cs-CZ");
 }
 
-function getPlanLabel(plan: "day" | "month" | "year" | "free") {
-  if (plan === "day") return "Denní plán";
-  if (plan === "month") return "Měsíční plán";
-  if (plan === "year") return "Roční plán";
-  return "Free plán";
+function getPlanLabel(planType: "day" | "month" | "year") {
+  if (planType === "day") return "Denní plán";
+  if (planType === "month") return "Měsíční plán";
+  return "Roční plán";
 }
 
 function SubscribeInner() {
@@ -204,6 +203,9 @@ function SubscribeInner() {
     return selectedPlan.subscriptionPriceUsd;
   }, [planMode, selectedPlan, safeDayCount]);
 
+  const currentPlan = profileData?.subscriptionPlans.currentPlan || null;
+  const futurePlans = profileData?.subscriptionPlans.futurePlans || [];
+
   async function handleBuyPlan() {
     if (!userId) return;
 
@@ -293,9 +295,6 @@ function SubscribeInner() {
     );
   }
 
-  const currentPlan = profileData.subscriptionPlans.currentPlan;
-  const futurePlans = profileData.subscriptionPlans.futurePlans;
-
   return (
     <main style={styles.page}>
       <div style={styles.shell}>
@@ -303,7 +302,9 @@ function SubscribeInner() {
           <div>
             <h1 style={styles.title}>{t(dictionary, "subscription.title")}</h1>
             <div style={styles.subTitle}>
-              Správa předplatného a kreditu
+              {currentPlan
+                ? `${getPlanLabel(currentPlan.planType)} · ${formatDate(currentPlan.endsAt)}`
+                : "FREE"}
             </div>
           </div>
 
@@ -331,68 +332,76 @@ function SubscribeInner() {
         </div>
 
         <section style={styles.card}>
-          <h2 style={styles.sectionTitle}>Aktuální předplacené období</h2>
+          <h2 style={styles.sectionTitle}>Aktuální předplatné</h2>
 
-          {currentPlan ? (
+          <div style={styles.infoBox}>
+            <div style={styles.infoLabel}>Aktivní plán</div>
+            <div style={styles.infoValue}>
+              {currentPlan
+                ? `${getPlanLabel(currentPlan.planType)} do ${formatDate(currentPlan.endsAt)}`
+                : "Žádné aktivní předplatné"}
+            </div>
+          </div>
+
+          {futurePlans.length > 0 ? (
             <>
-              <div style={styles.planCard}>
-                <div style={styles.planName}>{getPlanLabel(currentPlan.planType)}</div>
-                <div style={styles.planDates}>
-                  Aktivní od {formatDate(currentPlan.startsAt)} do {formatDate(currentPlan.endsAt)}
-                </div>
-              </div>
+              <button
+                type="button"
+                style={styles.secondaryButton}
+                onClick={() => setShowFuturePlans((prev) => !prev)}
+              >
+                {showFuturePlans ? "Skrýt další plány" : "Zobrazit další plány"}
+              </button>
 
-              {futurePlans.length > 0 ? (
-                <>
-                  <button
-                    type="button"
-                    style={styles.secondaryButton}
-                    onClick={() => setShowFuturePlans((prev) => !prev)}
-                  >
-                    {showFuturePlans ? "Skrýt další navazující plány" : "Zobrazit další navazující plány"}
-                  </button>
-
-                  {showFuturePlans ? (
-                    <div style={styles.futurePlanList}>
-                      {futurePlans.map((item, index) => (
-                        <div key={`${item.planType}-${item.startsAt}-${index}`} style={styles.futurePlanItem}>
-                          <div style={styles.futurePlanName}>{getPlanLabel(item.planType)}</div>
-                          <div style={styles.futurePlanDates}>
-                            Od {formatDate(item.startsAt)} do {formatDate(item.endsAt)}
-                          </div>
-                        </div>
-                      ))}
+              {showFuturePlans ? (
+                <div style={styles.planList}>
+                  {futurePlans.map((plan, index) => (
+                    <div
+                      key={`${plan.planType}-${plan.startsAt}-${index}`}
+                      style={styles.planItem}
+                    >
+                      <div style={styles.planItemTitle}>{getPlanLabel(plan.planType)}</div>
+                      <div style={styles.planItemText}>
+                        Začátek: {formatDate(plan.startsAt)}
+                      </div>
+                      <div style={styles.planItemText}>
+                        Konec: {formatDate(plan.endsAt)}
+                      </div>
                     </div>
-                  ) : null}
-                </>
-              ) : (
-                <div style={styles.noticeBox}>Nejsou předplaceny žádné další budoucí plány.</div>
-              )}
+                  ))}
+                </div>
+              ) : null}
             </>
-          ) : (
-            <div style={styles.noticeBox}>Momentálně není aktivní ani budoucí placený plán.</div>
-          )}
+          ) : null}
         </section>
 
         <div style={styles.summaryGrid}>
           <div style={styles.summaryBox}>
-            <div style={styles.summaryLabel}>{t(dictionary, "dashboard.freeViewsRemaining")}</div>
+            <div style={styles.summaryLabel}>
+              {t(dictionary, "dashboard.freeViewsRemaining")}
+            </div>
             <div style={styles.summaryValue}>
               {profileData.profile.free_views_remaining.toLocaleString()}
             </div>
           </div>
 
           <div style={styles.summaryBox}>
-            <div style={styles.summaryLabel}>{t(dictionary, "dashboard.creditPointsRemaining")}</div>
+            <div style={styles.summaryLabel}>
+              {t(dictionary, "dashboard.creditPointsRemaining")}
+            </div>
             <div style={styles.summaryValue}>
               {profileData.profile.credit_points_balance.toFixed(2)}
             </div>
           </div>
 
           <div style={styles.summaryBox}>
-            <div style={styles.summaryLabel}>{t(dictionary, "dashboard.approxViewsFromCredit")}</div>
-            <div style={styles.summaryValue}>
-              T: {profileData.approxViewsFromCredit.text.toLocaleString()} · U: {profileData.approxViewsFromCredit.url.toLocaleString()} · M: {profileData.approxViewsFromCredit.media.toLocaleString()}
+            <div style={styles.summaryLabel}>
+              {t(dictionary, "dashboard.approxViewsFromCredit")}
+            </div>
+            <div style={styles.summaryValueSmall}>
+              T: {profileData.approxViewsFromCredit.text.toLocaleString()} · U:{" "}
+              {profileData.approxViewsFromCredit.url.toLocaleString()} · M:{" "}
+              {profileData.approxViewsFromCredit.media.toLocaleString()}
             </div>
           </div>
         </div>
@@ -505,9 +514,7 @@ function SubscribeInner() {
             style={styles.input}
           />
 
-          <div style={styles.noticeBox}>
-            1 kreditní bod = 1 USD
-          </div>
+          <div style={styles.noticeBox}>1 kreditní bod = 1 USD</div>
 
           <div style={styles.infoBox}>
             <div style={styles.infoLabel}>Cena</div>
@@ -520,7 +527,9 @@ function SubscribeInner() {
             onClick={handleBuyCredit}
             disabled={busy !== ""}
           >
-            {busy === "credit" ? t(dictionary, "common.loading") : t(dictionary, "subscription.buyCredit")}
+            {busy === "credit"
+              ? t(dictionary, "common.loading")
+              : t(dictionary, "subscription.buyCredit")}
           </button>
         </section>
 
@@ -604,6 +613,12 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 22,
     fontWeight: 800,
     wordBreak: "break-word"
+  },
+  summaryValueSmall: {
+    fontSize: 16,
+    fontWeight: 700,
+    wordBreak: "break-word",
+    lineHeight: 1.5
   },
   card: {
     background: "#ffffff",
@@ -726,42 +741,25 @@ const styles: Record<string, CSSProperties> = {
     padding: 12,
     fontSize: 14
   },
-  planCard: {
-    border: "1px solid #dbeafe",
-    background: "#eff6ff",
-    borderRadius: 16,
-    padding: 16
-  },
-  planName: {
-    fontSize: 24,
-    fontWeight: 800,
-    color: "#1e3a8a"
-  },
-  planDates: {
-    marginTop: 8,
-    fontSize: 14,
-    color: "#334155",
-    lineHeight: 1.6
-  },
-  futurePlanList: {
+  planList: {
     display: "flex",
     flexDirection: "column",
     gap: 10
   },
-  futurePlanItem: {
-    border: "1px solid #e2e8f0",
-    background: "#ffffff",
+  planItem: {
+    border: "1px solid #dbeafe",
+    background: "#f8fbff",
     borderRadius: 14,
-    padding: 14
+    padding: 12
   },
-  futurePlanName: {
-    fontSize: 18,
+  planItemTitle: {
+    fontSize: 16,
     fontWeight: 800,
-    color: "#0f172a"
+    color: "#1e3a8a"
   },
-  futurePlanDates: {
-    marginTop: 6,
-    fontSize: 14,
+  planItemText: {
+    marginTop: 4,
+    fontSize: 13,
     color: "#475569"
   }
 };
