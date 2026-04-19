@@ -266,7 +266,7 @@ export default function DashboardPage() {
 
       try {
         await QRCode.toCanvas(qrCanvasRef.current, publicUrl, {
-          width: 280,
+          width: 320,
           margin: 2
         });
       } catch (error) {
@@ -561,7 +561,7 @@ export default function DashboardPage() {
 
     const link = document.createElement("a");
     link.href = qrCanvasRef.current.toDataURL("image/png");
-    link.download = "rqtools-qr.png";
+    link.download = `${title || "rqtools-qr"}.png`;
     link.click();
   }
 
@@ -602,12 +602,16 @@ export default function DashboardPage() {
               display: block;
               margin: 0 auto 12px auto;
             }
+            .label {
+              font-size: 16px;
+              font-weight: 700;
+            }
           </style>
         </head>
         <body>
           <div class="wrap">
             <img src="${dataUrl}" alt="QR code" />
-            <div>${title || "Můj QR kód"}</div>
+            <div class="label">${title || "Můj QR kód"}</div>
           </div>
           <script>
             window.onload = function () {
@@ -645,7 +649,7 @@ export default function DashboardPage() {
           <select
             value={language}
             onChange={(e) => setLanguageState(e.target.value)}
-            style={styles.select}
+            style={styles.selectCompact}
           >
             {availableLanguages.map((lang) => (
               <option key={lang.code} value={lang.code}>
@@ -656,7 +660,15 @@ export default function DashboardPage() {
 
           <button
             type="button"
-            style={styles.secondaryButton}
+            style={styles.headerButton}
+            onClick={() => router.push("/subscribe")}
+          >
+            Předplatné a kredit
+          </button>
+
+          <button
+            type="button"
+            style={styles.headerButton}
             onClick={async () => {
               await supabase.auth.signOut();
               router.push("/login");
@@ -668,7 +680,7 @@ export default function DashboardPage() {
       </div>
 
       <div style={styles.stackGrid}>
-        <section style={styles.phoneCard}>
+        <section style={{ ...styles.phoneCard, ...styles.cardCompact }}>
           <div style={styles.cardTitle}>Aktuální plán</div>
           <div style={styles.bigValue}>{currentPlanSummary}</div>
 
@@ -711,17 +723,17 @@ export default function DashboardPage() {
           ) : null}
         </section>
 
-        <section style={styles.phoneCard}>
+        <section style={{ ...styles.phoneCard, ...styles.cardCompact }}>
           <div style={styles.cardTitle}>Kredit a cena views</div>
           <div style={styles.rowTwoCols}>
-            <div style={styles.valueBox}>
+            <div style={styles.valueBoxCompact}>
               <div style={styles.valueLabel}>Aktuální kredit</div>
               <div style={styles.valueNumber}>
                 {profileData.profile.credit_points_balance.toFixed(2)}
               </div>
             </div>
 
-            <div style={styles.valueBox}>
+            <div style={styles.valueBoxCompact}>
               <div style={styles.valueLabel}>Cena / 1000 views při tomto plánu</div>
               <div style={styles.valueNumberSmall}>
                 {contentType === "text"
@@ -735,17 +747,17 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section style={styles.phoneCard}>
+        <section style={{ ...styles.phoneCard, ...styles.cardCompact }}>
           <div style={styles.cardTitle}>Views zdarma a views za kredit</div>
           <div style={styles.rowTwoCols}>
-            <div style={styles.valueBox}>
+            <div style={styles.valueBoxCompact}>
               <div style={styles.valueLabel}>Views zdarma</div>
               <div style={styles.valueNumber}>
                 {profileData.profile.free_views_remaining.toLocaleString()}
               </div>
             </div>
 
-            <div style={styles.valueBox}>
+            <div style={styles.valueBoxCompact}>
               <div style={styles.valueLabel}>Views za aktuální kredit</div>
               <div style={styles.valueNumber}>
                 {(contentType === "text"
@@ -759,7 +771,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section style={styles.phoneCard}>
+        <section style={{ ...styles.phoneCard, ...styles.cardCompact }}>
           <div style={styles.cardTitle}>Upozornění při poklesu views</div>
           <label style={styles.label}>Při kolika tisícovkách informovat</label>
           <input
@@ -775,7 +787,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section style={styles.phoneCard}>
+        <section style={{ ...styles.phoneCard, ...styles.cardCompact }}>
           <div style={styles.cardTitle}>Historie views</div>
           <div style={styles.rowTwoCols}>
             <div>
@@ -811,7 +823,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section style={styles.phoneCard}>
+        <section style={{ ...styles.phoneCard, ...styles.cardCompact }}>
           <div style={styles.cardTitle}>Aktivace zobrazení</div>
 
           <div style={styles.segmentRow}>
@@ -883,7 +895,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section style={styles.phoneCard}>
+        <section style={{ ...styles.phoneCard, ...styles.cardCompact }}>
           <div style={styles.cardTitle}>Název QR kódu</div>
           <input
             value={title}
@@ -893,622 +905,16 @@ export default function DashboardPage() {
           />
         </section>
 
-        <section style={styles.phoneCard}>
+        <section style={{ ...styles.phoneCard, ...styles.cardCompact }}>
           <div style={styles.cardTitle}>Obsah QR</div>
 
-          <div style={styles.segmentRow}>
-            <button type="button" style={styles.segmentButton} onClick={() => openContentModal("text")}>
+          <div style={styles.segmentRowThree}>
+            <button type="button" style={styles.segmentButtonCenter} onClick={() => openContentModal("text")}>
               Text
             </button>
-            <button type="button" style={styles.segmentButton} onClick={() => openContentModal("url")}>
+            <button type="button" style={styles.segmentButtonCenter} onClick={() => openContentModal("url")}>
               URL
             </button>
-            <button type="button" style={styles.segmentButton} onClick={() => openContentModal("media")}>
+            <button type="button" style={styles.segmentButtonCenter} onClick={() => openContentModal("media")}>
               Media
-            </button>
-          </div>
-
-          <div style={styles.valueBoxFull}>
-            <div style={styles.valueLabel}>Aktuálně zveřejněno</div>
-            <div style={styles.valueNumberSmall}>
-              {currentPublishedContent || "Zatím není zveřejněn žádný obsah."}
-            </div>
-          </div>
-        </section>
-
-        <section style={styles.phoneCard}>
-          <div style={styles.cardTitle}>Náhled zobrazení po naskenování</div>
-          <div style={styles.previewBox}>{previewText}</div>
-        </section>
-
-        <section style={styles.phoneCard}>
-          <div style={styles.cardTitle}>QR kód</div>
-
-          <div style={styles.qrWrap}>
-            <canvas ref={qrCanvasRef} />
-          </div>
-
-          <div style={styles.linkBox}>{publicViewUrl}</div>
-
-          <div style={styles.buttonStack}>
-            <button type="button" style={styles.secondaryButton} onClick={handleCopyLink}>
-              Copy link na URL
-            </button>
-
-            <button
-              type="button"
-              style={styles.secondaryButton}
-              onClick={() => setShowPrintModal(true)}
-            >
-              Print QR kód
-            </button>
-
-            <button type="button" style={styles.secondaryButton} onClick={handleDownloadQr}>
-              Download obrázek QR kódu
-            </button>
-
-            <button
-              type="button"
-              style={styles.dangerButton}
-              onClick={() => setShowRegenerateConfirm(true)}
-            >
-              Vygenerovat nový QR kód
-            </button>
-          </div>
-        </section>
-
-        <section style={styles.phoneCard}>
-          <div style={styles.cardTitle}>Fallback texty</div>
-
-          <label style={styles.label}>Obecný fallback</label>
-          <textarea
-            value={fallbackText}
-            onChange={(e) => setFallbackText(e.target.value)}
-            style={styles.textarea}
-          />
-
-          <label style={styles.label}>Text při vyčerpání views</label>
-          <textarea
-            value={viewsExhaustedText}
-            onChange={(e) => setViewsExhaustedText(e.target.value)}
-            style={styles.textarea}
-          />
-        </section>
-
-        <section style={styles.phoneCard}>
-          <div style={styles.cardTitle}>Upozornění</div>
-
-          {alerts.length === 0 ? (
-            <div style={styles.smallText}>Zatím nejsou žádná upozornění.</div>
-          ) : (
-            <div style={styles.alertList}>
-              {alerts.slice(0, 8).map((alert) => (
-                <div key={alert.id} style={styles.alertItem}>
-                  <div style={styles.alertMessage}>{alert.message}</div>
-                  <div style={styles.alertDate}>{formatDate(alert.created_at)}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section style={styles.phoneCard}>
-          <div style={styles.cardTitle}>Uložit změny</div>
-          <button
-            type="button"
-            style={styles.primaryButton}
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? "Ukládám..." : "Uložit vše"}
-          </button>
-        </section>
-      </div>
-
-      {message ? <div style={styles.floatingMessage}>{message}</div> : null}
-
-      {showContentModal ? (
-        <div style={styles.modalOverlay} onClick={closeContentModal}>
-          <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalTitle}>
-              {modalType === "text"
-                ? "Nastavit text"
-                : modalType === "url"
-                ? "Nastavit URL"
-                : "Vybrat media"}
-            </div>
-
-            {modalType === "text" ? (
-              <textarea
-                value={draftTextContent}
-                onChange={(e) => setDraftTextContent(e.target.value)}
-                style={styles.modalTextarea}
-                placeholder="Sem napiš text"
-              />
-            ) : null}
-
-            {modalType === "url" ? (
-              <input
-                value={draftCustomUrl}
-                onChange={(e) => setDraftCustomUrl(e.target.value)}
-                style={styles.input}
-                placeholder="https://..."
-              />
-            ) : null}
-
-            {modalType === "media" ? (
-              <div style={styles.filePickerWrap}>
-                <input
-                  type="file"
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                    setDraftFile(e.target.files?.[0] || null);
-                  }}
-                  style={styles.input}
-                />
-                <div style={styles.smallText}>
-                  {draftFile ? draftFile.name : "Zatím není vybraný soubor."}
-                </div>
-              </div>
-            ) : null}
-
-            <div style={styles.modalActions}>
-              <button type="button" style={styles.secondaryButton} onClick={closeContentModal}>
-                Zrušit
-              </button>
-              <button
-                type="button"
-                style={styles.primaryButton}
-                onClick={confirmContentModal}
-              >
-                Potvrdit
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {showRegenerateConfirm ? (
-        <div style={styles.modalOverlay} onClick={() => setShowRegenerateConfirm(false)}>
-          <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalTitle}>Vygenerovat nový QR kód</div>
-            <div style={styles.warningText}>
-              QR kód bude nevratně změněn. Aktuální QR kód už nebude nikde platný
-              a bude nahrazen novým.
-            </div>
-
-            <div style={styles.modalActions}>
-              <button
-                type="button"
-                style={styles.secondaryButton}
-                onClick={() => setShowRegenerateConfirm(false)}
-              >
-                Zrušit
-              </button>
-              <button
-                type="button"
-                style={styles.dangerButton}
-                onClick={handleRegenerateQr}
-                disabled={saving}
-              >
-                {saving ? "Provádím..." : "Potvrdit změnu"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {showPrintModal ? (
-        <div style={styles.modalOverlay} onClick={() => setShowPrintModal(false)}>
-          <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalTitle}>Tisk QR kódu</div>
-
-            <div style={styles.rowTwoCols}>
-              <div>
-                <label style={styles.label}>Jednotka</label>
-                <select
-                  value={printUnit}
-                  onChange={(e) => setPrintUnit(e.target.value as "cm" | "inch")}
-                  style={styles.select}
-                >
-                  <option value="cm">cm</option>
-                  <option value="inch">inch</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={styles.label}>Velikost</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={printSize}
-                  onChange={(e) => setPrintSize(e.target.value)}
-                  style={styles.input}
-                />
-              </div>
-            </div>
-
-            <div style={styles.modalActions}>
-              <button
-                type="button"
-                style={styles.secondaryButton}
-                onClick={() => setShowPrintModal(false)}
-              >
-                Zavřít
-              </button>
-              <button type="button" style={styles.primaryButton} onClick={handlePrintQr}>
-                Tisknout
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </main>
-  );
-}
-
-const styles: Record<string, CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "#f3f6fb",
-    padding: 16,
-    boxSizing: "border-box"
-  },
-  topBar: {
-    maxWidth: 1600,
-    margin: "0 auto 16px auto",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 16,
-    flexWrap: "wrap"
-  },
-  brand: {
-    fontSize: 28,
-    fontWeight: 800,
-    color: "#0f172a"
-  },
-  subBrand: {
-    fontSize: 14,
-    color: "#64748b",
-    marginTop: 4
-  },
-  topRight: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    flexWrap: "wrap"
-  },
-  stackGrid: {
-    maxWidth: 1600,
-    margin: "0 auto",
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(290px, 360px))",
-    gap: 16,
-    alignItems: "start",
-    justifyContent: "start"
-  },
-  phoneCard: {
-    width: "100%",
-    minHeight: 220,
-    background: "#ffffff",
-    border: "1px solid #dbe3ee",
-    borderRadius: 24,
-    padding: 18,
-    boxSizing: "border-box",
-    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.06)",
-    display: "flex",
-    flexDirection: "column",
-    gap: 14
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 800,
-    color: "#0f172a"
-  },
-  bigValue: {
-    fontSize: 22,
-    fontWeight: 800,
-    lineHeight: 1.35,
-    color: "#111827"
-  },
-  smallText: {
-    fontSize: 13,
-    color: "#64748b",
-    lineHeight: 1.5
-  },
-  rowTwoCols: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 12
-  },
-  valueBox: {
-    border: "1px solid #e2e8f0",
-    borderRadius: 16,
-    padding: 14,
-    background: "#f8fbff",
-    minHeight: 110,
-    boxSizing: "border-box"
-  },
-  valueBoxFull: {
-    border: "1px solid #e2e8f0",
-    borderRadius: 16,
-    padding: 14,
-    background: "#f8fbff",
-    boxSizing: "border-box"
-  },
-  valueLabel: {
-    fontSize: 13,
-    color: "#64748b",
-    marginBottom: 8
-  },
-  valueNumber: {
-    fontSize: 28,
-    fontWeight: 800,
-    color: "#0f172a",
-    wordBreak: "break-word"
-  },
-  valueNumberSmall: {
-    fontSize: 18,
-    fontWeight: 800,
-    color: "#0f172a",
-    wordBreak: "break-word"
-  },
-  valueHint: {
-    marginTop: 8,
-    fontSize: 12,
-    color: "#64748b",
-    lineHeight: 1.4
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: 700,
-    color: "#334155"
-  },
-  input: {
-    width: "100%",
-    padding: 12,
-    borderRadius: 14,
-    border: "1px solid #cbd5e1",
-    background: "#ffffff",
-    fontSize: 14,
-    boxSizing: "border-box"
-  },
-  select: {
-    width: "100%",
-    padding: 12,
-    borderRadius: 14,
-    border: "1px solid #cbd5e1",
-    background: "#ffffff",
-    fontSize: 14,
-    boxSizing: "border-box"
-  },
-  textarea: {
-    width: "100%",
-    minHeight: 96,
-    padding: 12,
-    borderRadius: 14,
-    border: "1px solid #cbd5e1",
-    background: "#ffffff",
-    fontSize: 14,
-    boxSizing: "border-box",
-    resize: "vertical",
-    fontFamily: "inherit"
-  },
-  segmentRow: {
-    display: "grid",
-    gridTemplateColumns: "1fr",
-    gap: 10
-  },
-  segmentButton: {
-    width: "100%",
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid #cbd5e1",
-    background: "#ffffff",
-    cursor: "pointer",
-    fontWeight: 700,
-    fontSize: 14,
-    textAlign: "left"
-  },
-  segmentButtonActive: {
-    background: "#eff6ff",
-    border: "1px solid #2563eb",
-    color: "#1d4ed8"
-  },
-  previewBox: {
-    border: "1px dashed #cbd5e1",
-    borderRadius: 18,
-    background: "#ffffff",
-    padding: 18,
-    minHeight: 180,
-    whiteSpace: "pre-wrap",
-    wordBreak: "break-word",
-    fontSize: 18,
-    fontWeight: 700,
-    lineHeight: 1.4,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    textAlign: "center"
-  },
-  qrWrap: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 12,
-    borderRadius: 18,
-    background: "#ffffff",
-    border: "1px solid #e2e8f0"
-  },
-  linkBox: {
-    padding: 12,
-    borderRadius: 14,
-    border: "1px solid #e2e8f0",
-    background: "#f8fbff",
-    fontSize: 13,
-    lineHeight: 1.5,
-    wordBreak: "break-all"
-  },
-  buttonStack: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 10
-  },
-  primaryButton: {
-    width: "100%",
-    padding: "13px 16px",
-    borderRadius: 14,
-    border: "1px solid #2563eb",
-    background: "#2563eb",
-    color: "#ffffff",
-    cursor: "pointer",
-    fontWeight: 800,
-    fontSize: 14
-  },
-  secondaryButton: {
-    width: "100%",
-    padding: "13px 16px",
-    borderRadius: 14,
-    border: "1px solid #cbd5e1",
-    background: "#ffffff",
-    color: "#111827",
-    cursor: "pointer",
-    fontWeight: 800,
-    fontSize: 14
-  },
-  dangerButton: {
-    width: "100%",
-    padding: "13px 16px",
-    borderRadius: 14,
-    border: "1px solid #dc2626",
-    background: "#dc2626",
-    color: "#ffffff",
-    cursor: "pointer",
-    fontWeight: 800,
-    fontSize: 14
-  },
-  alertList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 10
-  },
-  alertItem: {
-    border: "1px solid #e2e8f0",
-    borderRadius: 14,
-    background: "#fffaf0",
-    padding: 12
-  },
-  alertMessage: {
-    fontSize: 14,
-    fontWeight: 700,
-    color: "#0f172a",
-    lineHeight: 1.45
-  },
-  alertDate: {
-    marginTop: 6,
-    fontSize: 12,
-    color: "#64748b"
-  },
-  floatingMessage: {
-    position: "fixed",
-    right: 18,
-    bottom: 18,
-    maxWidth: 360,
-    padding: "12px 14px",
-    borderRadius: 14,
-    background: "#0f172a",
-    color: "#ffffff",
-    fontSize: 14,
-    boxShadow: "0 12px 35px rgba(15,23,42,0.25)",
-    zIndex: 1001
-  },
-  loadingCard: {
-    maxWidth: 500,
-    margin: "120px auto",
-    background: "#ffffff",
-    border: "1px solid #dbe3ee",
-    borderRadius: 22,
-    padding: 24,
-    textAlign: "center",
-    fontWeight: 700
-  },
-  modalOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(15,23,42,0.5)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 18,
-    zIndex: 1000
-  },
-  modalCard: {
-    width: "100%",
-    maxWidth: 560,
-    background: "#ffffff",
-    borderRadius: 22,
-    border: "1px solid #dbe3ee",
-    padding: 18,
-    boxSizing: "border-box",
-    display: "flex",
-    flexDirection: "column",
-    gap: 14
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 800,
-    color: "#0f172a"
-  },
-  modalTextarea: {
-    width: "100%",
-    minHeight: 180,
-    padding: 12,
-    borderRadius: 14,
-    border: "1px solid #cbd5e1",
-    background: "#ffffff",
-    fontSize: 14,
-    boxSizing: "border-box",
-    resize: "vertical",
-    fontFamily: "inherit"
-  },
-  filePickerWrap: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 10
-  },
-  modalActions: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 12
-  },
-  warningText: {
-    padding: 12,
-    borderRadius: 14,
-    border: "1px solid #fecaca",
-    background: "#fef2f2",
-    color: "#991b1b",
-    fontSize: 14,
-    lineHeight: 1.6
-  },
-  inlinePlanList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 10
-  },
-  inlinePlanItem: {
-    border: "1px solid #dbeafe",
-    background: "#f8fbff",
-    borderRadius: 14,
-    padding: 12
-  },
-  inlinePlanTitle: {
-    fontSize: 16,
-    fontWeight: 800,
-    color: "#1e3a8a"
-  },
-  inlinePlanText: {
-    marginTop: 4,
-    fontSize: 13,
-    color: "#475569"
-  }
-};
+            </button
