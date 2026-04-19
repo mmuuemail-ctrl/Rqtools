@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { evaluateAntiAbuse } from "../../../lib/anti-abuse";
 import { getPricePer1000ViewsUsd } from "../../../lib/pricing";
 import type { ContentType, PlanType } from "../../../lib/app-config";
-import { supabaseAdmin } from "../../../lib/supabase-admin";
 
 export const runtime = "nodejs";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl) {
+  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
+}
+
+if (!serviceRoleKey) {
+  throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
+}
+
+const supabase = createClient(supabaseUrl, serviceRoleKey);
 
 type ProfileRow = {
   id: string;
@@ -49,10 +62,7 @@ function createDeviceHash(request: NextRequest) {
   const ip = forwardedFor.split(",")[0]?.trim() || "unknown-ip";
   const userAgent = request.headers.get("user-agent") || "unknown-agent";
 
-  return crypto
-    .createHash("sha256")
-    .update(`${ip}::${userAgent}`)
-    .digest("hex");
+  return crypto.createHash("sha256").update(`${ip}::${userAgent}`).digest("hex");
 }
 
 function hasActivePaidSubscription(profile: ProfileRow) {
@@ -88,9 +98,6 @@ function isQrWithinActivation(qr: QrRow, profile: ProfileRow) {
   const now = Date.now();
 
   if (qr.activation_mode === "subscription_period") {
-    if (qr.content_type === "text") {
-      return true;
-    }
     return hasActivePaidSubscription(profile);
   }
 
@@ -128,11 +135,7 @@ function isContentAllowed(qr: QrRow, profile: ProfileRow) {
 }
 
 function getFallbackText(qr: QrRow, profile: ProfileRow) {
-  return (
-    qr.fallback_text ||
-    profile.fallback_text_default ||
-    "QR kód teď není funkční."
-  );
+  return qr.fallback_text || profile.fallback_text_default || "QR kód teď není funkční.";
 }
 
 function getViewsExhaustedText(qr: QrRow, profile: ProfileRow) {
@@ -144,7 +147,11 @@ function getViewsExhaustedText(qr: QrRow, profile: ProfileRow) {
 }
 
 function shouldChargeForScan(qr: QrRow) {
-  return qr.content_type === "text" || qr.content_type === "url" || qr.content_type === "media";
+  return (
+    qr.content_type === "text" ||
+    qr.content_type === "url" ||
+    qr.content_type === "media"
+  );
 }
 
 function roundTo6(value: number) {
@@ -159,7 +166,7 @@ async function insertViewEvent(params: {
   chargedFrom: "free_views" | "credit_points" | "none";
   chargedAmount: number;
 }) {
-  await supabaseAdmin.from("view_events").insert({
+  await supabase.from("view_events").insert({
     qr_id: params.qrId,
     device_hash: params.deviceHash,
     was_counted: params.wasCounted,
@@ -174,12 +181,12 @@ async function maybeCreateLowViewsAlert(profile: ProfileRow) {
     return;
   }
 
-  const remainingFree = Number(profile.free_views_remaining || 0);
-  if (remainingFree >= profile.low_views_alert_threshold) {
+  const remaining = Number(profile.free_views_remaining || 0);
+  if (remaining >= profile.low_views_alert_threshold) {
     return;
   }
 
-  const existing = await supabaseAdmin
+  const existing = await supabase
     .from("alerts")
     .select("id")
     .eq("user_id", profile.id)
@@ -191,7 +198,7 @@ async function maybeCreateLowViewsAlert(profile: ProfileRow) {
     return;
   }
 
-  await supabaseAdmin.from("alerts").insert({
+  await supabase.from("alerts").insert({
     user_id: profile.id,
     alert_type: "low_views_threshold",
     message: `Zbývá méně než ${profile.low_views_alert_threshold.toLocaleString()} views.`
@@ -199,7 +206,7 @@ async function maybeCreateLowViewsAlert(profile: ProfileRow) {
 }
 
 async function createViewsExhaustedAlert(profile: ProfileRow) {
-  const existing = await supabaseAdmin
+  const existing = await supabase
     .from("alerts")
     .select("id")
     .eq("user_id", profile.id)
@@ -211,7 +218,7 @@ async function createViewsExhaustedAlert(profile: ProfileRow) {
     return;
   }
 
-  await supabaseAdmin.from("alerts").insert({
+  await supabase.from("alerts").insert({
     user_id: profile.id,
     alert_type: "views_exhausted",
     message: "QR už není aktivní, protože došly views nebo kredit."
@@ -223,10 +230,13 @@ export async function GET(request: NextRequest) {
     const code = request.nextUrl.searchParams.get("code");
 
     if (!code) {
-      return NextResponse.json({ success: false, error: "Chybí veřejný kód." }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "Chybí veřejný kód." },
+        { status: 400 }
+      );
     }
 
-    const { data: qrCode, error: qrError } = await supabaseAdmin
+    const { data: qrCode, error: qrError } = await supabase
       .from("qr_codes")
       .select(`
         id,
@@ -256,12 +266,15 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (qrError || !qrCode) {
-      return NextResponse.json({ success: false, error: "QR kód nebyl nalezen." }, { status: 404 });
+      return NextResponse.json(
+        { success: false, error: "QR kód nebyl nalezen." },
+        { status: 404 }
+      );
     }
 
     const qr = qrCode as QrRow;
 
-    const { data: profile, error: profileError } = await supabaseAdmin
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select(`
         id,
@@ -278,13 +291,16 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (profileError || !profile) {
-      return NextResponse.json({ success: false, error: "Profil nebyl nalezen." }, { status: 404 });
+      return NextResponse.json(
+        { success: false, error: "Profil nebyl nalezen." },
+        { status: 404 }
+      );
     }
 
     const typedProfile = profile as ProfileRow;
     const deviceHash = createDeviceHash(request);
 
-    const priorEventsRes = await supabaseAdmin
+    const priorEventsRes = await supabase
       .from("view_events")
       .select("viewed_at, was_counted")
       .eq("qr_id", qr.id)
@@ -396,7 +412,7 @@ export async function GET(request: NextRequest) {
 
         const nextFreeViews = Math.max(typedProfile.free_views_remaining - 1, 0);
 
-        const updateRes = await supabaseAdmin
+        const updateRes = await supabase
           .from("profiles")
           .update({
             free_views_remaining: nextFreeViews
@@ -404,7 +420,10 @@ export async function GET(request: NextRequest) {
           .eq("id", typedProfile.id);
 
         if (updateRes.error) {
-          return NextResponse.json({ success: false, error: updateRes.error.message }, { status: 500 });
+          return NextResponse.json(
+            { success: false, error: updateRes.error.message },
+            { status: 500 }
+          );
         }
 
         typedProfile.free_views_remaining = nextFreeViews;
@@ -443,7 +462,7 @@ export async function GET(request: NextRequest) {
         chargedFrom = "credit_points";
         chargedAmount = roundTo6(ratePerSingleView);
 
-        const updateRes = await supabaseAdmin
+        const updateRes = await supabase
           .from("profiles")
           .update({
             credit_points_balance: nextCreditBalance
@@ -451,7 +470,10 @@ export async function GET(request: NextRequest) {
           .eq("id", typedProfile.id);
 
         if (updateRes.error) {
-          return NextResponse.json({ success: false, error: updateRes.error.message }, { status: 500 });
+          return NextResponse.json(
+            { success: false, error: updateRes.error.message },
+            { status: 500 }
+          );
         }
 
         typedProfile.credit_points_balance = nextCreditBalance;
@@ -467,7 +489,7 @@ export async function GET(request: NextRequest) {
       chargedAmount
     });
 
-    const qrUpdateRes = await supabaseAdmin
+    const qrUpdateRes = await supabase
       .from("qr_codes")
       .update({
         total_valid_views: (qr.total_valid_views || 0) + 1
@@ -475,7 +497,10 @@ export async function GET(request: NextRequest) {
       .eq("id", qr.id);
 
     if (qrUpdateRes.error) {
-      return NextResponse.json({ success: false, error: qrUpdateRes.error.message }, { status: 500 });
+      return NextResponse.json(
+        { success: false, error: qrUpdateRes.error.message },
+        { status: 500 }
+      );
     }
 
     if (qr.content_type === "text") {
