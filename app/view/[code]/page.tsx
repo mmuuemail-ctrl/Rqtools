@@ -126,7 +126,11 @@ export default function PublicQrViewPage({ params }: PageProps) {
     if (payload.mode !== "redirect") return;
     if (!payload.url) return;
 
-    window.location.replace(payload.url);
+    const timer = window.setTimeout(() => {
+      window.location.replace(payload.url);
+    }, 900);
+
+    return () => window.clearTimeout(timer);
   }, [payload]);
 
   const fileInfo = useMemo(() => {
@@ -170,12 +174,23 @@ export default function PublicQrViewPage({ params }: PageProps) {
     return <MessageScreen title="Chyba" text="Obsah QR není dostupný." />;
   }
 
-  if (payload.mode === "text" || payload.mode === "fallback") {
+  if (payload.mode === "text") {
     return (
-      <main style={styles.screen}>
+      <main style={styles.textScreen}>
         <div style={styles.textWrap}>
           {payload.title ? <div style={styles.smallTitle}>{payload.title}</div> : null}
           <div style={styles.bigText}>{payload.text}</div>
+        </div>
+      </main>
+    );
+  }
+
+  if (payload.mode === "fallback") {
+    return (
+      <main style={styles.fallbackScreen}>
+        <div style={styles.fallbackCard}>
+          {payload.title ? <div style={styles.fallbackTitle}>{payload.title}</div> : null}
+          <div style={styles.fallbackText}>{payload.text}</div>
         </div>
       </main>
     );
@@ -264,6 +279,24 @@ const styles: Record<string, CSSProperties> = {
     background: "#ffffff",
     color: "#111111"
   },
+  textScreen: {
+    minHeight: "100vh",
+    width: "100%",
+    margin: 0,
+    background: "#ffffff",
+    color: "#111111"
+  },
+  fallbackScreen: {
+    minHeight: "100vh",
+    width: "100%",
+    margin: 0,
+    padding: 24,
+    boxSizing: "border-box",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#f8fafc"
+  },
   messageWrap: {
     width: "100%",
     maxWidth: 1200,
@@ -293,7 +326,7 @@ const styles: Record<string, CSSProperties> = {
   textWrap: {
     minHeight: "100vh",
     width: "100%",
-    padding: "4vh 4vw",
+    padding: "4vh 5vw",
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
@@ -316,6 +349,30 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: "pre-wrap",
     wordBreak: "break-word",
     maxWidth: "100%"
+  },
+  fallbackCard: {
+    width: "100%",
+    maxWidth: 900,
+    border: "1px solid #e2e8f0",
+    borderRadius: 24,
+    padding: "32px 24px",
+    background: "#ffffff",
+    boxShadow: "0 12px 40px rgba(15, 23, 42, 0.08)",
+    textAlign: "center"
+  },
+  fallbackTitle: {
+    fontSize: "clamp(20px, 3vw, 34px)",
+    fontWeight: 700,
+    color: "#0f172a",
+    marginBottom: 16
+  },
+  fallbackText: {
+    fontSize: "clamp(22px, 5vw, 48px)",
+    lineHeight: 1.25,
+    fontWeight: 700,
+    color: "#111827",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word"
   },
   mediaScreen: {
     minHeight: "100vh",
