@@ -62,15 +62,6 @@ function addYears(date: Date, years: number) {
   return copy;
 }
 
-function getFutureBaseDate(currentIso: string | null) {
-  if (!currentIso) return new Date();
-
-  const current = new Date(currentIso);
-  if (Number.isNaN(current.getTime())) return new Date();
-
-  return current.getTime() > Date.now() ? current : new Date();
-}
-
 async function markEventStarted(eventId: string, eventType: string) {
   const { data, error } = await supabase
     .from("stripe_webhook_events")
@@ -86,7 +77,7 @@ async function markEventStarted(eventId: string, eventType: string) {
       return false;
     }
 
-    throw new Error(`stripe_webhook_events insert failed: ${error.message}`);
+    throw new Error(error.message);
   }
 
   return !!data;
@@ -102,54 +93,178 @@ async function getProfile(userId: string) {
       subscription_expires_at,
       billing_period,
       free_views_remaining,
-      credit_points_balance
+      credit_points_balance,
+      stripe_customer_id,
+      stripe_subscription_id
     `)
     .eq("id", userId)
     .single();
 
   if (error || !data) {
-    throw new Error(error?.message || "Profile not found.");
+    throw new Error(error?.message || "Profil nenalezen.");
   }
 
   return data;
 }
 
-async function applyPlanPurchase(
-  userId: string,
-  planType: "day" | "month" | "year",
-  dayCount: number
-) {
-  const profile = await getProfile(userId);
-  const base = getFutureBaseDate(profile.subscription_expires_at);
+async function getLastSubscriptionPeriodEnd(userId: string) {
+  const { data, error } = await supabase
+    .from("subscription_periods")
+    .select("ends_at")
+    .eq("user_id", userId)
+    .order("ends_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  let expiresAt: string | null = null;
-  let freeViews = 0;
-
-  if (planType === "day") {
-    expiresAt = addDays(base, dayCount).toISOString();
-    freeViews = APP_CONFIG.plans.day.includedFreeViews * dayCount;
-  } else if (planType === "month") {
-    expiresAt = addMonths(base, 1).toISOString();
-    freeViews = APP_CONFIG.plans.month.includedFreeViews;
-  } else {
-    expiresAt = addYears(base, 1).toISOString();
-    freeViews = APP_CONFIG.plans.year.includedFreeViews;
+  if (error) {
+    throw new Error(error.message);
   }
 
-  const { error } = await supabase
+  if (!data?.ends_at) {
+    return null;
+  }
+
+  return data.ends_at as string;
+}
+
+function getFutureBaseDate(currentIso: string | null) {
+  if (!currentIso) return new Date();
+
+  const current = new Date(currentIso);
+  if (Number.isNaN(current.getTime())) return new Date();
+
+  return current.getTime() > Date.now() ? current : new Date();
+}
+
+async function recalculateProfileSubscriptionState(userId: string) {
+  const { data: periods, error } = await supabase
+    .from("subscription_periods")
+    .select("plan_type, starts_at, ends_at")
+    .eq("user_id", userId)
+    .order("starts_at", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const now = Date.now();
+  const all = periods || [];
+
+  const active = all.find((item) => {
+    const starts = new Date(item.starts_at).getTime();
+    const ends = new Date(item.ends_at).getTime();
+    return now >= starts && now <= ends;
+  });
+
+  if (active) {
+    const updateRes = await supabase
+      .from("profiles")
+      .update({
+        plan_type: active.plan_type,
+        subscription_status: "active",
+        billing_period: active.plan_type,
+        subscription_expires_at: active.ends_at
+      })
+      .eq("id", userId);
+
+    if (updateRes.error) {
+      throw new Error(updateRes.error.message);
+    }
+
+    return;
+  }
+
+  const future = all.find((item) => new Date(item.starts_at).getTime() > now);
+
+  if (future) {
+    const updateRes = await supabase
+      .from("profiles")
+      .update({
+        plan_type: future.plan_type,
+        subscription_status: "active",
+        billing_period: future.plan_type,
+        subscription_expires_at: future.ends_at
+      })
+      .eq("id", userId);
+
+    if (updateRes.error) {
+      throw new Error(updateRes.error.message);
+    }
+
+    return;
+  }
+
+  const updateRes = await supabase
     .from("profiles")
     .update({
-      plan_type: planType,
-      subscription_status: "active",
-      billing_period: planType,
-      subscription_expires_at: expiresAt,
-      free_views_remaining: freeViews
+      plan_type: "free",
+      subscription_status: "inactive",
+      subscription_expires_at: null,
+      billing_period: null,
+      free_views_remaining: 0,
+      stripe_subscription_id: null
     })
     .eq("id", userId);
 
-  if (error) {
-    throw new Error(`profiles update failed: ${error.message}`);
+  if (updateRes.error) {
+    throw new Error(updateRes.error.message);
   }
+}
+
+async function applyPlanPurchase(
+  userId: string,
+  planType: "day" | "month" | "year",
+  dayCount: number,
+  stripeEventId: string
+) {
+  const profile = await getProfile(userId);
+  const lastPeriodEnd = await getLastSubscriptionPeriodEnd(userId);
+  const base = getFutureBaseDate(lastPeriodEnd || profile.subscription_expires_at);
+
+  let startsAt = base.toISOString();
+  let endsAt: string | null = null;
+  let freeViews = 0;
+
+  if (planType === "day") {
+    endsAt = addDays(base, dayCount).toISOString();
+    freeViews = APP_CONFIG.plans.day.includedFreeViews * dayCount;
+  }
+
+  if (planType === "month") {
+    endsAt = addMonths(base, 1).toISOString();
+    freeViews = APP_CONFIG.plans.month.includedFreeViews;
+  }
+
+  if (planType === "year") {
+    endsAt = addYears(base, 1).toISOString();
+    freeViews = APP_CONFIG.plans.year.includedFreeViews;
+  }
+
+  const insertRes = await supabase.from("subscription_periods").insert({
+    user_id: userId,
+    plan_type: planType,
+    starts_at: startsAt,
+    ends_at: endsAt,
+    source: "stripe_checkout",
+    stripe_event_id: stripeEventId
+  });
+
+  if (insertRes.error) {
+    throw new Error(insertRes.error.message);
+  }
+
+  const updateRes = await supabase
+    .from("profiles")
+    .update({
+      free_views_remaining: Number(profile.free_views_remaining || 0) + freeViews
+    })
+    .eq("id", userId);
+
+  if (updateRes.error) {
+    throw new Error(updateRes.error.message);
+  }
+
+  await recalculateProfileSubscriptionState(userId);
 }
 
 async function applyCreditPurchase(
@@ -168,7 +283,7 @@ async function applyCreditPurchase(
     .eq("id", userId);
 
   if (updateRes.error) {
-    throw new Error(`credit balance update failed: ${updateRes.error.message}`);
+    throw new Error(updateRes.error.message);
   }
 
   const insertRes = await supabase
@@ -181,7 +296,7 @@ async function applyCreditPurchase(
     });
 
   if (insertRes.error) {
-    throw new Error(`credit_purchases insert failed: ${insertRes.error.message}`);
+    throw new Error(insertRes.error.message);
   }
 }
 
@@ -193,31 +308,17 @@ async function downgradeBySubscriptionId(stripeSubscriptionId: string) {
     .maybeSingle();
 
   if (error) {
-    throw new Error(`find subscription profile failed: ${error.message}`);
+    throw new Error(error.message);
   }
 
   if (!data?.id) {
     return;
   }
 
-  const updateRes = await supabase
-    .from("profiles")
-    .update({
-      plan_type: "free",
-      subscription_status: "inactive",
-      subscription_expires_at: null,
-      billing_period: null,
-      free_views_remaining: 0,
-      stripe_subscription_id: null
-    })
-    .eq("id", data.id);
-
-  if (updateRes.error) {
-    throw new Error(`downgrade failed: ${updateRes.error.message}`);
-  }
+  await recalculateProfileSubscriptionState(data.id);
 }
 
-async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session, eventId: string) {
   const metadata = (session.metadata || {}) as Record<string, string>;
   const purchaseType = metadata.purchase_type || "";
   const userId = metadata.user_id || session.client_reference_id || "";
@@ -231,7 +332,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     const dayCount = parsePositiveInt(metadata.day_count, 1);
 
     if (rawPlanType !== "day" && rawPlanType !== "month" && rawPlanType !== "year") {
-      throw new Error(`Invalid plan_type: ${rawPlanType}`);
+      throw new Error("Invalid plan_type.");
     }
 
     const customerId =
@@ -248,7 +349,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         ? session.subscription.id
         : null;
 
-    await applyPlanPurchase(userId, rawPlanType, dayCount);
+    await applyPlanPurchase(userId, rawPlanType, dayCount, eventId);
 
     const updateRes = await supabase
       .from("profiles")
@@ -259,7 +360,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       .eq("id", userId);
 
     if (updateRes.error) {
-      throw new Error(`stripe ids update failed: ${updateRes.error.message}`);
+      throw new Error(updateRes.error.message);
     }
 
     return;
@@ -307,7 +408,7 @@ export async function POST(req: Request) {
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      await handleCheckoutCompleted(session);
+      await handleCheckoutCompleted(session, event.id);
     }
 
     if (event.type === "customer.subscription.deleted") {
@@ -332,13 +433,9 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ received: true, type: event.type });
+    return NextResponse.json({ received: true });
   } catch (error) {
     console.error("Stripe webhook processing error:", error);
-
-    const message =
-      error instanceof Error ? error.message : "Webhook processing failed";
-
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });
   }
 }
