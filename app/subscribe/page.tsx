@@ -2,7 +2,7 @@
 
 import { CSSProperties, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabaseBrowser } from "../../lib/supabase-browser";
+import { supabase } from "../../lib/supabase";
 import { APP_CONFIG } from "../../lib/app-config";
 import { formatUsd } from "../../lib/pricing";
 import {
@@ -14,6 +14,8 @@ import {
   type LanguageDictionary,
   type LanguageMeta
 } from "../../lib/i18n";
+
+type PlanMode = "day" | "month" | "year";
 
 type ProfileResponse = {
   profile: {
@@ -57,9 +59,24 @@ type ProfileResponse = {
     url: number;
     media: number;
   };
+  subscriptionPlans: {
+    currentPlan: {
+      planType: "day" | "month" | "year";
+      startsAt: string;
+      endsAt: string;
+    } | null;
+    futurePlans: Array<{
+      planType: "day" | "month" | "year";
+      startsAt: string;
+      endsAt: string;
+    }>;
+    allMergedPlans: Array<{
+      planType: "day" | "month" | "year";
+      startsAt: string;
+      endsAt: string;
+    }>;
+  };
 };
-
-type PlanMode = "day" | "month" | "year";
 
 function parsePositiveInt(value: string, fallback = 1) {
   const parsed = Number(value);
@@ -72,7 +89,14 @@ function formatDate(value: string | null) {
   if (!value) return "—";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString();
+  return d.toLocaleString("cs-CZ");
+}
+
+function getPlanLabel(plan: "day" | "month" | "year" | "free") {
+  if (plan === "day") return "Denní plán";
+  if (plan === "month") return "Měsíční plán";
+  if (plan === "year") return "Roční plán";
+  return "Free plán";
 }
 
 function SubscribeInner() {
@@ -88,6 +112,7 @@ function SubscribeInner() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
+  const [showFuturePlans, setShowFuturePlans] = useState(false);
 
   const [planMode, setPlanMode] = useState<PlanMode>("month");
   const [dayCount, setDayCount] = useState("1");
@@ -132,7 +157,7 @@ function SubscribeInner() {
           setMessage("Platba byla zrušena.");
         }
 
-        const { data } = await supabaseBrowser.auth.getSession();
+        const { data } = await supabase.auth.getSession();
         const currentUserId = data.session?.user?.id || "";
 
         if (!currentUserId) {
@@ -268,6 +293,9 @@ function SubscribeInner() {
     );
   }
 
+  const currentPlan = profileData.subscriptionPlans.currentPlan;
+  const futurePlans = profileData.subscriptionPlans.futurePlans;
+
   return (
     <main style={styles.page}>
       <div style={styles.shell}>
@@ -275,11 +303,7 @@ function SubscribeInner() {
           <div>
             <h1 style={styles.title}>{t(dictionary, "subscription.title")}</h1>
             <div style={styles.subTitle}>
-              {profileData.profile.subscription_status === "active"
-                ? `${profileData.profile.plan_type.toUpperCase()} · ${formatDate(
-                    profileData.profile.subscription_expires_at
-                  )}`
-                : "FREE"}
+              Správa předplatného a kreditu
             </div>
           </div>
 
@@ -305,6 +329,50 @@ function SubscribeInner() {
             </button>
           </div>
         </div>
+
+        <section style={styles.card}>
+          <h2 style={styles.sectionTitle}>Aktuální předplacené období</h2>
+
+          {currentPlan ? (
+            <>
+              <div style={styles.planCard}>
+                <div style={styles.planName}>{getPlanLabel(currentPlan.planType)}</div>
+                <div style={styles.planDates}>
+                  Aktivní od {formatDate(currentPlan.startsAt)} do {formatDate(currentPlan.endsAt)}
+                </div>
+              </div>
+
+              {futurePlans.length > 0 ? (
+                <>
+                  <button
+                    type="button"
+                    style={styles.secondaryButton}
+                    onClick={() => setShowFuturePlans((prev) => !prev)}
+                  >
+                    {showFuturePlans ? "Skrýt další navazující plány" : "Zobrazit další navazující plány"}
+                  </button>
+
+                  {showFuturePlans ? (
+                    <div style={styles.futurePlanList}>
+                      {futurePlans.map((item, index) => (
+                        <div key={`${item.planType}-${item.startsAt}-${index}`} style={styles.futurePlanItem}>
+                          <div style={styles.futurePlanName}>{getPlanLabel(item.planType)}</div>
+                          <div style={styles.futurePlanDates}>
+                            Od {formatDate(item.startsAt)} do {formatDate(item.endsAt)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div style={styles.noticeBox}>Nejsou předplaceny žádné další budoucí plány.</div>
+              )}
+            </>
+          ) : (
+            <div style={styles.noticeBox}>Momentálně není aktivní ani budoucí placený plán.</div>
+          )}
+        </section>
 
         <div style={styles.summaryGrid}>
           <div style={styles.summaryBox}>
@@ -657,5 +725,43 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 12,
     padding: 12,
     fontSize: 14
+  },
+  planCard: {
+    border: "1px solid #dbeafe",
+    background: "#eff6ff",
+    borderRadius: 16,
+    padding: 16
+  },
+  planName: {
+    fontSize: 24,
+    fontWeight: 800,
+    color: "#1e3a8a"
+  },
+  planDates: {
+    marginTop: 8,
+    fontSize: 14,
+    color: "#334155",
+    lineHeight: 1.6
+  },
+  futurePlanList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10
+  },
+  futurePlanItem: {
+    border: "1px solid #e2e8f0",
+    background: "#ffffff",
+    borderRadius: 14,
+    padding: 14
+  },
+  futurePlanName: {
+    fontSize: 18,
+    fontWeight: 800,
+    color: "#0f172a"
+  },
+  futurePlanDates: {
+    marginTop: 6,
+    fontSize: 14,
+    color: "#475569"
   }
 };
