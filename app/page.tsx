@@ -70,6 +70,23 @@ type ProfileResponse = {
     url: number;
     media: number;
   };
+  subscriptionPlans: {
+    currentPlan: {
+      planType: "day" | "month" | "year";
+      startsAt: string;
+      endsAt: string;
+    } | null;
+    futurePlans: Array<{
+      planType: "day" | "month" | "year";
+      startsAt: string;
+      endsAt: string;
+    }>;
+    allMergedPlans: Array<{
+      planType: "day" | "month" | "year";
+      startsAt: string;
+      endsAt: string;
+    }>;
+  };
 };
 
 type AlertsResponse = {
@@ -100,11 +117,11 @@ function truncateText(value: string, max = 110) {
   return value.length > max ? `${value.slice(0, max)}...` : value;
 }
 
-function getPlanLabel(planType: PlanType) {
-  if (planType === "day") return "Denní";
-  if (planType === "month") return "Měsíční";
-  if (planType === "year") return "Roční";
-  return "Free";
+function getPlanLabel(planType: "day" | "month" | "year" | "free") {
+  if (planType === "day") return "Denní plán";
+  if (planType === "month") return "Měsíční plán";
+  if (planType === "year") return "Roční plán";
+  return "Free plán";
 }
 
 function getCurrentRateLabel(
@@ -154,6 +171,7 @@ export default function DashboardPage() {
 
   const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
   const [alerts, setAlerts] = useState<AlertsResponse["alerts"]>([]);
+  const [showFuturePlans, setShowFuturePlans] = useState(false);
 
   const [title, setTitle] = useState("");
   const [contentType, setContentType] = useState<ContentType>("text");
@@ -351,16 +369,15 @@ export default function DashboardPage() {
   }, [contentType, textContent, customUrl, selectedFile, profileData]);
 
   const currentPlanSummary = useMemo(() => {
-    if (!profileData) return "—";
+    if (!profileData) return "Free plán";
 
-    const active = profileData.profile.subscription_status === "active";
-    if (!active) {
+    const currentPlan = profileData.subscriptionPlans.currentPlan;
+
+    if (!currentPlan) {
       return "Free plán";
     }
 
-    return `${getPlanLabel(profileData.profile.plan_type)} plán aktivní do ${formatDate(
-      profileData.profile.subscription_expires_at
-    )}`;
+    return `${getPlanLabel(currentPlan.planType)} aktivní do ${formatDate(currentPlan.endsAt)}`;
   }, [profileData]);
 
   function openContentModal(type: DraftContentType) {
@@ -613,6 +630,9 @@ export default function DashboardPage() {
     );
   }
 
+  const currentPlan = profileData.subscriptionPlans.currentPlan;
+  const futurePlans = profileData.subscriptionPlans.futurePlans;
+
   return (
     <main style={styles.page}>
       <div style={styles.topBar}>
@@ -651,10 +671,44 @@ export default function DashboardPage() {
         <section style={styles.phoneCard}>
           <div style={styles.cardTitle}>Aktuální plán</div>
           <div style={styles.bigValue}>{currentPlanSummary}</div>
-          <div style={styles.smallText}>
-            Pokud navazují další stejné plány hned za sebou, je zobrazen konec
-            posledního stejného období.
-          </div>
+
+          {currentPlan ? (
+            <div style={styles.smallText}>
+              Aktivní od {formatDate(currentPlan.startsAt)} do {formatDate(currentPlan.endsAt)}
+            </div>
+          ) : (
+            <div style={styles.smallText}>Momentálně běží free režim.</div>
+          )}
+
+          {futurePlans.length > 0 ? (
+            <>
+              <button
+                type="button"
+                style={styles.secondaryButton}
+                onClick={() => setShowFuturePlans((prev) => !prev)}
+              >
+                {showFuturePlans
+                  ? "Skrýt další předplacené plány"
+                  : "Zobrazit další předplacené plány"}
+              </button>
+
+              {showFuturePlans ? (
+                <div style={styles.inlinePlanList}>
+                  {futurePlans.map((plan, index) => (
+                    <div key={`${plan.planType}-${plan.startsAt}-${index}`} style={styles.inlinePlanItem}>
+                      <div style={styles.inlinePlanTitle}>{getPlanLabel(plan.planType)}</div>
+                      <div style={styles.inlinePlanText}>
+                        Začátek: {formatDate(plan.startsAt)}
+                      </div>
+                      <div style={styles.inlinePlanText}>
+                        Konec: {formatDate(plan.endsAt)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </section>
 
         <section style={styles.phoneCard}>
@@ -1435,5 +1489,26 @@ const styles: Record<string, CSSProperties> = {
     color: "#991b1b",
     fontSize: 14,
     lineHeight: 1.6
+  },
+  inlinePlanList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10
+  },
+  inlinePlanItem: {
+    border: "1px solid #dbeafe",
+    background: "#f8fbff",
+    borderRadius: 14,
+    padding: 12
+  },
+  inlinePlanTitle: {
+    fontSize: 16,
+    fontWeight: 800,
+    color: "#1e3a8a"
+  },
+  inlinePlanText: {
+    marginTop: 4,
+    fontSize: 13,
+    color: "#475569"
   }
 };
