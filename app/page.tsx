@@ -684,7 +684,11 @@ const styles: Record<string, CSSProperties> = {
   previewTitle: {
     fontSize: 72,
     fontWeight: 800,
-    lineHeight: 1
+    lineHeight: 1,
+    opacity: 0.18,
+    position: "absolute",
+    pointerEvents: "none",
+    userSelect: "none"
   },
   previewContent: {
     fontSize: 28,
