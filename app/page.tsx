@@ -4,10 +4,7 @@ import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
-import {
-  type ActivationMode,
-  type ContentType
-} from "../lib/app-config";
+import { type ActivationMode, type ContentType } from "../lib/app-config";
 
 type PlanType = "free" | "day" | "month" | "year";
 type SubscriptionStatus = "inactive" | "active" | "expired" | "canceled";
@@ -95,13 +92,8 @@ function getPlanLabel(planType: "day" | "month" | "year" | "free") {
 function getViewsAvailable(profileData: ProfileResponse | null, contentType: ContentType) {
   if (!profileData) return 0;
 
-  if (contentType === "text") {
-    return profileData.approxViewsFromCredit.text;
-  }
-
-  if (contentType === "url") {
-    return profileData.approxViewsFromCredit.url;
-  }
+  if (contentType === "text") return profileData.approxViewsFromCredit.text;
+  if (contentType === "url") return profileData.approxViewsFromCredit.url;
 
   return profileData.approxViewsFromCredit.media;
 }
@@ -111,12 +103,31 @@ export default function DashboardPage() {
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [savingText, setSavingText] = useState(false);
   const [message, setMessage] = useState("");
+  const [userId, setUserId] = useState("");
   const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
   const [scale, setScale] = useState(1);
 
+  const [showTextModal, setShowTextModal] = useState(false);
+  const [draftText, setDraftText] = useState("");
+
   const BASE_WIDTH = 720;
   const BASE_HEIGHT = 1480;
+
+  async function loadProfile(currentUserId: string) {
+    const res = await fetch(`/api/profile?userId=${encodeURIComponent(currentUserId)}`, {
+      cache: "no-store"
+    });
+
+    const dataJson = await res.json();
+
+    if (!res.ok) {
+      throw new Error(dataJson?.error || "Profile load failed");
+    }
+
+    setProfileData(dataJson as ProfileResponse);
+  }
 
   useEffect(() => {
     const updateScale = () => {
@@ -152,17 +163,8 @@ export default function DashboardPage() {
           return;
         }
 
-        const res = await fetch(`/api/profile?userId=${encodeURIComponent(currentUserId)}`, {
-          cache: "no-store"
-        });
-
-        const dataJson = await res.json();
-
-        if (!res.ok) {
-          throw new Error(dataJson?.error || "Profile load failed");
-        }
-
-        setProfileData(dataJson as ProfileResponse);
+        setUserId(currentUserId);
+        await loadProfile(currentUserId);
       } catch (error) {
         console.error(error);
         setMessage("Nepodařilo se načíst dashboard.");
@@ -221,6 +223,88 @@ export default function DashboardPage() {
 
     return profileData.qrCode.file_name || "Zatím není nahrané žádné medium.";
   }, [profileData]);
+
+  function openTextModal() {
+    setDraftText(profileData?.qrCode.text_content || "");
+    setShowTextModal(true);
+    setMessage("");
+  }
+
+  function closeTextModal() {
+    if (savingText) return;
+    setShowTextModal(false);
+    setDraftText("");
+  }
+
+  async function confirmTextModal() {
+    if (!profileData || !userId) return;
+
+    const cleanText = draftText.trim();
+
+    if (!cleanText) {
+      setMessage("Nejdřív napiš text.");
+      return;
+    }
+
+    try {
+      setSavingText(true);
+      setMessage("");
+
+      const formData = new FormData();
+      formData.append("userId", userId);
+      formData.append("qrId", profileData.qrCode.id);
+      formData.append("title", profileData.qrCode.title || "");
+      formData.append("contentType", "text");
+      formData.append("textContent", cleanText);
+      formData.append("customUrl", "");
+      formData.append("activationMode", profileData.qrCode.activation_mode);
+      formData.append("activationDays", String(profileData.qrCode.activation_days || 1));
+      formData.append(
+        "activationStartDate",
+        profileData.qrCode.activation_started_at
+          ? profileData.qrCode.activation_started_at.slice(0, 10)
+          : ""
+      );
+      formData.append("maxViewsEnabled", String(profileData.qrCode.max_views_enabled));
+      formData.append(
+        "maxViewsTotalThousands",
+        profileData.qrCode.max_views_total
+          ? String(Math.floor(profileData.qrCode.max_views_total / 1000))
+          : ""
+      );
+      formData.append("fallbackText", profileData.qrCode.fallback_text || "");
+      formData.append("viewsExhaustedText", profileData.qrCode.views_exhausted_text || "");
+      formData.append(
+        "lowViewsAlertThresholdThousands",
+        profileData.profile.low_views_alert_threshold
+          ? String(Math.floor(profileData.profile.low_views_alert_threshold / 1000))
+          : ""
+      );
+
+      const res = await fetch("/api/qr/update", {
+        method: "POST",
+        body: formData
+      });
+
+      const dataJson = await res.json();
+
+      if (!res.ok) {
+        setMessage(dataJson?.error || "Text se nepodařilo uložit.");
+        return;
+      }
+
+      await loadProfile(userId);
+
+      setShowTextModal(false);
+      setDraftText("");
+      setMessage("Text byl uložen.");
+    } catch (error) {
+      console.error(error);
+      setMessage("Text se nepodařilo uložit.");
+    } finally {
+      setSavingText(false);
+    }
+  }
 
   async function handleCopyLink() {
     try {
@@ -353,7 +437,9 @@ export default function DashboardPage() {
           <section style={styles.wideCard}>
             <div style={styles.viewsRow}>
               <span>views k dispozici</span>
-              <strong>{getViewsAvailable(profileData, profileData.qrCode.content_type).toLocaleString()}</strong>
+              <strong>
+                {getViewsAvailable(profileData, profileData.qrCode.content_type).toLocaleString()}
+              </strong>
             </div>
 
             <div style={styles.viewsRow}>
@@ -363,18 +449,14 @@ export default function DashboardPage() {
           </section>
 
           <section style={styles.buttonRow}>
-            <button
-              type="button"
-              style={styles.bigOptionButton}
-              onClick={() => setMessage("Obsah Text budeme řešit v dalším kroku přes menu.")}
-            >
+            <button type="button" style={styles.bigOptionButton} onClick={openTextModal}>
               text
             </button>
 
             <button
               type="button"
               style={styles.bigOptionButton}
-              onClick={() => setMessage("Obsah URL budeme řešit v dalším kroku přes menu.")}
+              onClick={() => setMessage("URL nastavíme v dalším kroku.")}
             >
               url
             </button>
@@ -382,7 +464,7 @@ export default function DashboardPage() {
             <button
               type="button"
               style={styles.bigOptionButton}
-              onClick={() => setMessage("Obsah Media budeme řešit v dalším kroku přes menu.")}
+              onClick={() => setMessage("Media nastavíme v dalším kroku.")}
             >
               media
             </button>
@@ -418,6 +500,42 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {showTextModal ? (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalBox}>
+            <div style={styles.modalTitle}>Zadat text</div>
+
+            <textarea
+              value={draftText}
+              onChange={(e) => setDraftText(e.target.value)}
+              style={styles.textArea}
+              placeholder="Napiš text, který se zobrazí po naskenování QR kódu."
+              autoFocus
+            />
+
+            <div style={styles.modalButtons}>
+              <button
+                type="button"
+                style={styles.modalCancelButton}
+                onClick={closeTextModal}
+                disabled={savingText}
+              >
+                zrusit
+              </button>
+
+              <button
+                type="button"
+                style={styles.modalConfirmButton}
+                onClick={confirmTextModal}
+                disabled={savingText}
+              >
+                {savingText ? "ukladam..." : "potvrdit"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {message ? <div style={styles.messageBox}>{message}</div> : null}
     </main>
@@ -638,6 +756,72 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
     textAlign: "center"
   },
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0, 0, 0, 0.45)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 18,
+    boxSizing: "border-box",
+    zIndex: 100
+  },
+  modalBox: {
+    width: "100%",
+    maxWidth: 520,
+    border: "6px solid #000000",
+    borderRadius: 28,
+    background: "#c8d7e7",
+    padding: 22,
+    boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+    gap: 16
+  },
+  modalTitle: {
+    fontSize: 34,
+    fontWeight: 900,
+    textAlign: "center"
+  },
+  textArea: {
+    width: "100%",
+    minHeight: 210,
+    resize: "vertical",
+    border: "5px solid #000000",
+    borderRadius: 22,
+    padding: 16,
+    boxSizing: "border-box",
+    fontSize: 22,
+    fontWeight: 700,
+    lineHeight: 1.35,
+    background: "#ffffff",
+    color: "#000000",
+    outline: "none"
+  },
+  modalButtons: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 14
+  },
+  modalCancelButton: {
+    minHeight: 70,
+    border: "5px solid #000000",
+    borderRadius: 20,
+    background: "#ffffff",
+    fontSize: 24,
+    fontWeight: 900,
+    cursor: "pointer"
+  },
+  modalConfirmButton: {
+    minHeight: 70,
+    border: "5px solid #000000",
+    borderRadius: 20,
+    background: "#ead790",
+    fontSize: 24,
+    fontWeight: 900,
+    cursor: "pointer"
+  },
   messageBox: {
     position: "fixed",
     right: 18,
@@ -650,6 +834,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 14,
     lineHeight: 1.45,
     boxShadow: "0 14px 35px rgba(0,0,0,0.22)",
-    zIndex: 50
+    zIndex: 150
   }
 };
