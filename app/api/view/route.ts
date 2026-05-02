@@ -10,13 +10,8 @@ export const runtime = "nodejs";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl) {
-  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
-}
-
-if (!serviceRoleKey) {
-  throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
-}
+if (!supabaseUrl) throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
+if (!serviceRoleKey) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
@@ -66,34 +61,34 @@ function createDeviceHash(request: NextRequest) {
 }
 
 function hasActivePaidSubscription(profile: ProfileRow) {
-  if (
-    profile.plan_type !== "day" &&
-    profile.plan_type !== "month" &&
-    profile.plan_type !== "year"
-  ) {
-    return false;
-  }
-
-  if (profile.subscription_status !== "active") {
-    return false;
-  }
-
-  if (!profile.subscription_expires_at) {
-    return false;
-  }
+  if (!["day", "month", "year"].includes(profile.plan_type)) return false;
+  if (profile.subscription_status !== "active") return false;
+  if (!profile.subscription_expires_at) return false;
 
   const expiresAt = new Date(profile.subscription_expires_at);
-  if (Number.isNaN(expiresAt.getTime())) {
-    return false;
-  }
+  if (Number.isNaN(expiresAt.getTime())) return false;
 
   return expiresAt.getTime() > Date.now();
 }
 
-function isQrWithinActivation(qr: QrRow, profile: ProfileRow) {
-  if (!qr.is_active) {
-    return false;
+async function forceFreeViewsToZeroIfNoSubscription(profile: ProfileRow) {
+  if (hasActivePaidSubscription(profile)) return profile;
+
+  if (Number(profile.free_views_remaining || 0) > 0) {
+    await supabase
+      .from("profiles")
+      .update({ free_views_remaining: 0 })
+      .eq("id", profile.id);
   }
+
+  return {
+    ...profile,
+    free_views_remaining: 0
+  };
+}
+
+function isQrWithinActivation(qr: QrRow, profile: ProfileRow) {
+  if (!qr.is_active) return false;
 
   const now = Date.now();
 
@@ -102,24 +97,17 @@ function isQrWithinActivation(qr: QrRow, profile: ProfileRow) {
   }
 
   if (qr.activation_mode === "days") {
-    if (!qr.activation_started_at || !qr.activation_days) {
-      return false;
-    }
+    if (!qr.activation_started_at || !qr.activation_days) return false;
 
     const startedAt = new Date(qr.activation_started_at).getTime();
-    if (Number.isNaN(startedAt)) {
-      return false;
-    }
+    if (Number.isNaN(startedAt)) return false;
 
     const endsAt = startedAt + qr.activation_days * 24 * 60 * 60 * 1000;
     return now >= startedAt && now <= endsAt;
   }
 
   if (qr.activation_mode === "unlimited") {
-    if (qr.content_type === "text") {
-      return true;
-    }
-
+    if (qr.content_type === "text") return true;
     return hasActivePaidSubscription(profile);
   }
 
@@ -127,10 +115,7 @@ function isQrWithinActivation(qr: QrRow, profile: ProfileRow) {
 }
 
 function isContentAllowed(qr: QrRow, profile: ProfileRow) {
-  if (qr.content_type === "text") {
-    return true;
-  }
-
+  if (qr.content_type === "text") return true;
   return hasActivePaidSubscription(profile);
 }
 
@@ -147,11 +132,7 @@ function getViewsExhaustedText(qr: QrRow, profile: ProfileRow) {
 }
 
 function shouldChargeForScan(qr: QrRow) {
-  return (
-    qr.content_type === "text" ||
-    qr.content_type === "url" ||
-    qr.content_type === "media"
-  );
+  return qr.content_type === "text" || qr.content_type === "url" || qr.content_type === "media";
 }
 
 function roundTo6(value: number) {
@@ -177,14 +158,10 @@ async function insertViewEvent(params: {
 }
 
 async function maybeCreateLowViewsAlert(profile: ProfileRow) {
-  if (!profile.low_views_alert_threshold || profile.low_views_alert_threshold <= 0) {
-    return;
-  }
+  if (!profile.low_views_alert_threshold || profile.low_views_alert_threshold <= 0) return;
 
   const remaining = Number(profile.free_views_remaining || 0);
-  if (remaining >= profile.low_views_alert_threshold) {
-    return;
-  }
+  if (remaining >= profile.low_views_alert_threshold) return;
 
   const existing = await supabase
     .from("alerts")
@@ -194,14 +171,12 @@ async function maybeCreateLowViewsAlert(profile: ProfileRow) {
     .gte("created_at", new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString())
     .limit(1);
 
-  if (existing.data && existing.data.length > 0) {
-    return;
-  }
+  if (existing.data && existing.data.length > 0) return;
 
   await supabase.from("alerts").insert({
     user_id: profile.id,
     alert_type: "low_views_threshold",
-    message: `Zbývá méně než ${profile.low_views_alert_threshold.toLocaleString()} views.`
+    message: `Zbývá méně než ${profile.low_views_alert_threshold.toLocaleString()} views zdarma.`
   });
 }
 
@@ -214,14 +189,41 @@ async function createViewsExhaustedAlert(profile: ProfileRow) {
     .gte("created_at", new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString())
     .limit(1);
 
-  if (existing.data && existing.data.length > 0) {
-    return;
-  }
+  if (existing.data && existing.data.length > 0) return;
 
   await supabase.from("alerts").insert({
     user_id: profile.id,
     alert_type: "views_exhausted",
     message: "QR už není aktivní, protože došly views nebo kredit."
+  });
+}
+
+function buildContentResponse(qr: QrRow) {
+  if (qr.content_type === "text") {
+    return NextResponse.json({
+      success: true,
+      mode: "text",
+      title: qr.title || "",
+      text: qr.text_content || ""
+    });
+  }
+
+  if (qr.content_type === "url") {
+    return NextResponse.json({
+      success: true,
+      mode: "redirect",
+      title: qr.title || "",
+      url: qr.custom_url || ""
+    });
+  }
+
+  return NextResponse.json({
+    success: true,
+    mode: "file",
+    title: qr.title || "",
+    fileUrl: qr.public_url || "",
+    fileName: qr.file_name || null,
+    mimeType: qr.mime_type || null
   });
 }
 
@@ -297,7 +299,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const typedProfile = profile as ProfileRow;
+    let typedProfile = await forceFreeViewsToZeroIfNoSubscription(profile as ProfileRow);
     const deviceHash = createDeviceHash(request);
 
     const priorEventsRes = await supabase
@@ -336,32 +338,7 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      if (qr.content_type === "text") {
-        return NextResponse.json({
-          success: true,
-          mode: "text",
-          title: qr.title || "",
-          text: qr.text_content || ""
-        });
-      }
-
-      if (qr.content_type === "url") {
-        return NextResponse.json({
-          success: true,
-          mode: "redirect",
-          title: qr.title || "",
-          url: qr.custom_url || ""
-        });
-      }
-
-      return NextResponse.json({
-        success: true,
-        mode: "file",
-        title: qr.title || "",
-        fileUrl: qr.public_url || "",
-        fileName: qr.file_name || null,
-        mimeType: qr.mime_type || null
-      });
+      return buildContentResponse(qr);
     }
 
     if (!isQrWithinActivation(qr, typedProfile) || !isContentAllowed(qr, typedProfile)) {
@@ -406,7 +383,9 @@ export async function GET(request: NextRequest) {
     let chargedAmount = 0;
 
     if (shouldChargeForScan(qr)) {
-      if (typedProfile.free_views_remaining > 0) {
+      const canUseFreeViews = hasActivePaidSubscription(typedProfile);
+
+      if (canUseFreeViews && typedProfile.free_views_remaining > 0) {
         chargedFrom = "free_views";
         chargedAmount = 1;
 
@@ -414,9 +393,7 @@ export async function GET(request: NextRequest) {
 
         const updateRes = await supabase
           .from("profiles")
-          .update({
-            free_views_remaining: nextFreeViews
-          })
+          .update({ free_views_remaining: nextFreeViews })
           .eq("id", typedProfile.id);
 
         if (updateRes.error) {
@@ -426,7 +403,11 @@ export async function GET(request: NextRequest) {
           );
         }
 
-        typedProfile.free_views_remaining = nextFreeViews;
+        typedProfile = {
+          ...typedProfile,
+          free_views_remaining: nextFreeViews
+        };
+
         await maybeCreateLowViewsAlert(typedProfile);
       } else {
         const ratePer1000 = getPricePer1000ViewsUsd(
@@ -464,9 +445,7 @@ export async function GET(request: NextRequest) {
 
         const updateRes = await supabase
           .from("profiles")
-          .update({
-            credit_points_balance: nextCreditBalance
-          })
+          .update({ credit_points_balance: nextCreditBalance })
           .eq("id", typedProfile.id);
 
         if (updateRes.error) {
@@ -476,7 +455,10 @@ export async function GET(request: NextRequest) {
           );
         }
 
-        typedProfile.credit_points_balance = nextCreditBalance;
+        typedProfile = {
+          ...typedProfile,
+          credit_points_balance: nextCreditBalance
+        };
       }
     }
 
@@ -503,32 +485,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (qr.content_type === "text") {
-      return NextResponse.json({
-        success: true,
-        mode: "text",
-        title: qr.title || "",
-        text: qr.text_content || ""
-      });
-    }
-
-    if (qr.content_type === "url") {
-      return NextResponse.json({
-        success: true,
-        mode: "redirect",
-        title: qr.title || "",
-        url: qr.custom_url || ""
-      });
-    }
-
-    return NextResponse.json({
-      success: true,
-      mode: "file",
-      title: qr.title || "",
-      fileUrl: qr.public_url || "",
-      fileName: qr.file_name || null,
-      mimeType: qr.mime_type || null
-    });
+    return buildContentResponse(qr);
   } catch (error) {
     console.error("GET /api/view error:", error);
     return NextResponse.json(
