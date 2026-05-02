@@ -10,27 +10,18 @@ const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!stripeSecretKey) {
-  throw new Error("Missing STRIPE_SECRET_KEY");
-}
-
-if (!webhookSecret) {
-  throw new Error("Missing STRIPE_WEBHOOK_SECRET");
-}
-
-if (!supabaseUrl) {
-  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
-}
-
-if (!serviceRoleKey) {
-  throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
-}
+if (!stripeSecretKey) throw new Error("Missing STRIPE_SECRET_KEY");
+if (!webhookSecret) throw new Error("Missing STRIPE_WEBHOOK_SECRET");
+if (!supabaseUrl) throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
+if (!serviceRoleKey) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
 
 const stripe = new Stripe(stripeSecretKey, {
   apiVersion: "2025-02-24.acacia"
 });
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+type PaidPlanType = "day" | "month" | "year";
 
 function parsePositiveInt(value: unknown, fallback = 0) {
   const parsed = Number(value);
@@ -62,6 +53,14 @@ function addYears(date: Date, years: number) {
   return copy;
 }
 
+function getIncludedFreeViews(planType: PaidPlanType, dayCount = 1) {
+  if (planType === "day") {
+    return APP_CONFIG.plans.day.includedFreeViews * dayCount;
+  }
+
+  return APP_CONFIG.plans[planType].includedFreeViews;
+}
+
 async function markEventStarted(eventId: string, eventType: string) {
   const { data, error } = await supabase
     .from("stripe_webhook_events")
@@ -73,10 +72,7 @@ async function markEventStarted(eventId: string, eventType: string) {
     .maybeSingle();
 
   if (error) {
-    if (error.code === "23505") {
-      return false;
-    }
-
+    if (error.code === "23505") return false;
     throw new Error(error.message);
   }
 
@@ -116,15 +112,8 @@ async function getLastSubscriptionPeriodEnd(userId: string) {
     .limit(1)
     .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!data?.ends_at) {
-    return null;
-  }
-
-  return data.ends_at as string;
+  if (error) throw new Error(error.message);
+  return data?.ends_at ? (data.ends_at as string) : null;
 }
 
 function getFutureBaseDate(currentIso: string | null) {
@@ -137,15 +126,15 @@ function getFutureBaseDate(currentIso: string | null) {
 }
 
 async function recalculateProfileSubscriptionState(userId: string) {
+  const profile = await getProfile(userId);
+
   const { data: periods, error } = await supabase
     .from("subscription_periods")
     .select("plan_type, starts_at, ends_at")
     .eq("user_id", userId)
     .order("starts_at", { ascending: true });
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
   const now = Date.now();
   const all = periods || [];
@@ -156,64 +145,49 @@ async function recalculateProfileSubscriptionState(userId: string) {
     return now >= starts && now <= ends;
   });
 
-  if (active) {
+  if (!active) {
     const updateRes = await supabase
       .from("profiles")
       .update({
-        plan_type: active.plan_type,
-        subscription_status: "active",
-        billing_period: active.plan_type,
-        subscription_expires_at: active.ends_at
+        plan_type: "free",
+        subscription_status: "inactive",
+        subscription_expires_at: null,
+        billing_period: null,
+        free_views_remaining: 0
       })
       .eq("id", userId);
 
-    if (updateRes.error) {
-      throw new Error(updateRes.error.message);
-    }
-
+    if (updateRes.error) throw new Error(updateRes.error.message);
     return;
   }
 
-  const future = all.find((item) => new Date(item.starts_at).getTime() > now);
+  const activePlanType = active.plan_type as PaidPlanType;
+  const periodChanged =
+    profile.plan_type !== activePlanType ||
+    profile.subscription_expires_at !== active.ends_at ||
+    profile.subscription_status !== "active";
 
-  if (future) {
-    const updateRes = await supabase
-      .from("profiles")
-      .update({
-        plan_type: future.plan_type,
-        subscription_status: "active",
-        billing_period: future.plan_type,
-        subscription_expires_at: future.ends_at
-      })
-      .eq("id", userId);
-
-    if (updateRes.error) {
-      throw new Error(updateRes.error.message);
-    }
-
-    return;
-  }
+  const nextFreeViews = periodChanged
+    ? getIncludedFreeViews(activePlanType)
+    : Number(profile.free_views_remaining || 0);
 
   const updateRes = await supabase
     .from("profiles")
     .update({
-      plan_type: "free",
-      subscription_status: "inactive",
-      subscription_expires_at: null,
-      billing_period: null,
-      free_views_remaining: 0,
-      stripe_subscription_id: null
+      plan_type: activePlanType,
+      subscription_status: "active",
+      billing_period: activePlanType,
+      subscription_expires_at: active.ends_at,
+      free_views_remaining: nextFreeViews
     })
     .eq("id", userId);
 
-  if (updateRes.error) {
-    throw new Error(updateRes.error.message);
-  }
+  if (updateRes.error) throw new Error(updateRes.error.message);
 }
 
 async function applyPlanPurchase(
   userId: string,
-  planType: "day" | "month" | "year",
+  planType: PaidPlanType,
   dayCount: number,
   stripeEventId: string
 ) {
@@ -221,23 +195,15 @@ async function applyPlanPurchase(
   const lastPeriodEnd = await getLastSubscriptionPeriodEnd(userId);
   const base = getFutureBaseDate(lastPeriodEnd || profile.subscription_expires_at);
 
-  let startsAt = base.toISOString();
-  let endsAt: string | null = null;
-  let freeViews = 0;
+  const startsAt = base.toISOString();
+  let endsAt: string;
 
   if (planType === "day") {
     endsAt = addDays(base, dayCount).toISOString();
-    freeViews = APP_CONFIG.plans.day.includedFreeViews * dayCount;
-  }
-
-  if (planType === "month") {
+  } else if (planType === "month") {
     endsAt = addMonths(base, 1).toISOString();
-    freeViews = APP_CONFIG.plans.month.includedFreeViews;
-  }
-
-  if (planType === "year") {
+  } else {
     endsAt = addYears(base, 1).toISOString();
-    freeViews = APP_CONFIG.plans.year.includedFreeViews;
   }
 
   const insertRes = await supabase.from("subscription_periods").insert({
@@ -249,20 +215,7 @@ async function applyPlanPurchase(
     stripe_event_id: stripeEventId
   });
 
-  if (insertRes.error) {
-    throw new Error(insertRes.error.message);
-  }
-
-  const updateRes = await supabase
-    .from("profiles")
-    .update({
-      free_views_remaining: Number(profile.free_views_remaining || 0) + freeViews
-    })
-    .eq("id", userId);
-
-  if (updateRes.error) {
-    throw new Error(updateRes.error.message);
-  }
+  if (insertRes.error) throw new Error(insertRes.error.message);
 
   await recalculateProfileSubscriptionState(userId);
 }
@@ -282,9 +235,7 @@ async function applyCreditPurchase(
     })
     .eq("id", userId);
 
-  if (updateRes.error) {
-    throw new Error(updateRes.error.message);
-  }
+  if (updateRes.error) throw new Error(updateRes.error.message);
 
   const insertRes = await supabase
     .from("credit_purchases")
@@ -295,9 +246,7 @@ async function applyCreditPurchase(
       source: "stripe_checkout"
     });
 
-  if (insertRes.error) {
-    throw new Error(insertRes.error.message);
-  }
+  if (insertRes.error) throw new Error(insertRes.error.message);
 }
 
 async function downgradeBySubscriptionId(stripeSubscriptionId: string) {
@@ -307,13 +256,8 @@ async function downgradeBySubscriptionId(stripeSubscriptionId: string) {
     .eq("stripe_subscription_id", stripeSubscriptionId)
     .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!data?.id) {
-    return;
-  }
+  if (error) throw new Error(error.message);
+  if (!data?.id) return;
 
   await recalculateProfileSubscriptionState(data.id);
 }
@@ -359,10 +303,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, eventId
       })
       .eq("id", userId);
 
-    if (updateRes.error) {
-      throw new Error(updateRes.error.message);
-    }
-
+    if (updateRes.error) throw new Error(updateRes.error.message);
     return;
   }
 
