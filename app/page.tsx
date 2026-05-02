@@ -679,6 +679,7 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: "center",
     alignItems: "center",
     textAlign: "center",
+    position: "relative",
     gap: 24
   },
   previewTitle: {
