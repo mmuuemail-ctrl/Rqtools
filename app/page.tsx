@@ -91,11 +91,19 @@ function getPlanLabel(planType: "day" | "month" | "year" | "free") {
 
 function getViewsAvailable(profileData: ProfileResponse | null, contentType: ContentType) {
   if (!profileData) return 0;
-
   if (contentType === "text") return profileData.approxViewsFromCredit.text;
   if (contentType === "url") return profileData.approxViewsFromCredit.url;
-
   return profileData.approxViewsFromCredit.media;
+}
+
+function normalizeUrl(value: string) {
+  const trimmed = value.trim();
+
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed;
+  }
+
+  return `https://${trimmed}`;
 }
 
 export default function DashboardPage() {
@@ -104,6 +112,7 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [savingText, setSavingText] = useState(false);
+  const [savingUrl, setSavingUrl] = useState(false);
   const [message, setMessage] = useState("");
   const [userId, setUserId] = useState("");
   const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
@@ -111,6 +120,9 @@ export default function DashboardPage() {
 
   const [showTextModal, setShowTextModal] = useState(false);
   const [draftText, setDraftText] = useState("");
+
+  const [showUrlModal, setShowUrlModal] = useState(false);
+  const [draftUrl, setDraftUrl] = useState("");
 
   const BASE_WIDTH = 720;
   const BASE_HEIGHT = 1480;
@@ -236,6 +248,53 @@ export default function DashboardPage() {
     setDraftText("");
   }
 
+  function openUrlModal() {
+    setDraftUrl(profileData?.qrCode.custom_url || "");
+    setShowUrlModal(true);
+    setMessage("");
+  }
+
+  function closeUrlModal() {
+    if (savingUrl) return;
+    setShowUrlModal(false);
+    setDraftUrl("");
+  }
+
+  function buildBaseFormData(contentType: ContentType) {
+    if (!profileData || !userId) return null;
+
+    const formData = new FormData();
+    formData.append("userId", userId);
+    formData.append("qrId", profileData.qrCode.id);
+    formData.append("title", profileData.qrCode.title || "");
+    formData.append("contentType", contentType);
+    formData.append("activationMode", profileData.qrCode.activation_mode);
+    formData.append("activationDays", String(profileData.qrCode.activation_days || 1));
+    formData.append(
+      "activationStartDate",
+      profileData.qrCode.activation_started_at
+        ? profileData.qrCode.activation_started_at.slice(0, 10)
+        : ""
+    );
+    formData.append("maxViewsEnabled", String(profileData.qrCode.max_views_enabled));
+    formData.append(
+      "maxViewsTotalThousands",
+      profileData.qrCode.max_views_total
+        ? String(Math.floor(profileData.qrCode.max_views_total / 1000))
+        : ""
+    );
+    formData.append("fallbackText", profileData.qrCode.fallback_text || "");
+    formData.append("viewsExhaustedText", profileData.qrCode.views_exhausted_text || "");
+    formData.append(
+      "lowViewsAlertThresholdThousands",
+      profileData.profile.low_views_alert_threshold
+        ? String(Math.floor(profileData.profile.low_views_alert_threshold / 1000))
+        : ""
+    );
+
+    return formData;
+  }
+
   async function confirmTextModal() {
     if (!profileData || !userId) return;
 
@@ -250,36 +309,11 @@ export default function DashboardPage() {
       setSavingText(true);
       setMessage("");
 
-      const formData = new FormData();
-      formData.append("userId", userId);
-      formData.append("qrId", profileData.qrCode.id);
-      formData.append("title", profileData.qrCode.title || "");
-      formData.append("contentType", "text");
+      const formData = buildBaseFormData("text");
+      if (!formData) return;
+
       formData.append("textContent", cleanText);
       formData.append("customUrl", "");
-      formData.append("activationMode", profileData.qrCode.activation_mode);
-      formData.append("activationDays", String(profileData.qrCode.activation_days || 1));
-      formData.append(
-        "activationStartDate",
-        profileData.qrCode.activation_started_at
-          ? profileData.qrCode.activation_started_at.slice(0, 10)
-          : ""
-      );
-      formData.append("maxViewsEnabled", String(profileData.qrCode.max_views_enabled));
-      formData.append(
-        "maxViewsTotalThousands",
-        profileData.qrCode.max_views_total
-          ? String(Math.floor(profileData.qrCode.max_views_total / 1000))
-          : ""
-      );
-      formData.append("fallbackText", profileData.qrCode.fallback_text || "");
-      formData.append("viewsExhaustedText", profileData.qrCode.views_exhausted_text || "");
-      formData.append(
-        "lowViewsAlertThresholdThousands",
-        profileData.profile.low_views_alert_threshold
-          ? String(Math.floor(profileData.profile.low_views_alert_threshold / 1000))
-          : ""
-      );
 
       const res = await fetch("/api/qr/update", {
         method: "POST",
@@ -303,6 +337,51 @@ export default function DashboardPage() {
       setMessage("Text se nepodařilo uložit.");
     } finally {
       setSavingText(false);
+    }
+  }
+
+  async function confirmUrlModal() {
+    if (!profileData || !userId) return;
+
+    const cleanUrl = normalizeUrl(draftUrl);
+
+    if (!draftUrl.trim() || cleanUrl === "https://") {
+      setMessage("Nejdřív zadej URL.");
+      return;
+    }
+
+    try {
+      setSavingUrl(true);
+      setMessage("");
+
+      const formData = buildBaseFormData("url");
+      if (!formData) return;
+
+      formData.append("textContent", "");
+      formData.append("customUrl", cleanUrl);
+
+      const res = await fetch("/api/qr/update", {
+        method: "POST",
+        body: formData
+      });
+
+      const dataJson = await res.json();
+
+      if (!res.ok) {
+        setMessage(dataJson?.error || "URL se nepodařilo uložit.");
+        return;
+      }
+
+      await loadProfile(userId);
+
+      setShowUrlModal(false);
+      setDraftUrl("");
+      setMessage("URL byla uložena.");
+    } catch (error) {
+      console.error(error);
+      setMessage("URL se nepodařilo uložit.");
+    } finally {
+      setSavingUrl(false);
     }
   }
 
@@ -388,9 +467,7 @@ export default function DashboardPage() {
   if (loading || !profileData) {
     return (
       <main style={styles.page}>
-        <div style={styles.loadingCard}>
-          {message || "Načítání dashboardu..."}
-        </div>
+        <div style={styles.loadingCard}>{message || "Načítání dashboardu..."}</div>
       </main>
     );
   }
@@ -453,11 +530,7 @@ export default function DashboardPage() {
               text
             </button>
 
-            <button
-              type="button"
-              style={styles.bigOptionButton}
-              onClick={() => setMessage("URL nastavíme v dalším kroku.")}
-            >
+            <button type="button" style={styles.bigOptionButton} onClick={openUrlModal}>
               url
             </button>
 
@@ -531,6 +604,42 @@ export default function DashboardPage() {
                 disabled={savingText}
               >
                 {savingText ? "ukladam..." : "potvrdit"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showUrlModal ? (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalBox}>
+            <div style={styles.modalTitle}>Zadat URL</div>
+
+            <input
+              value={draftUrl}
+              onChange={(e) => setDraftUrl(e.target.value)}
+              style={styles.urlInput}
+              placeholder="https://example.com"
+              autoFocus
+            />
+
+            <div style={styles.modalButtons}>
+              <button
+                type="button"
+                style={styles.modalCancelButton}
+                onClick={closeUrlModal}
+                disabled={savingUrl}
+              >
+                zrusit
+              </button>
+
+              <button
+                type="button"
+                style={styles.modalConfirmButton}
+                onClick={confirmUrlModal}
+                disabled={savingUrl}
+              >
+                {savingUrl ? "ukladam..." : "potvrdit"}
               </button>
             </div>
           </div>
@@ -800,6 +909,19 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 22,
     fontWeight: 700,
     lineHeight: 1.35,
+    background: "#ffffff",
+    color: "#000000",
+    outline: "none"
+  },
+  urlInput: {
+    width: "100%",
+    minHeight: 72,
+    border: "5px solid #000000",
+    borderRadius: 22,
+    padding: "0 16px",
+    boxSizing: "border-box",
+    fontSize: 22,
+    fontWeight: 700,
     background: "#ffffff",
     color: "#000000",
     outline: "none"
