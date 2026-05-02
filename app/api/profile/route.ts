@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { APP_CONFIG } from "../../../lib/app-config";
 import { getApproxViewsFromCreditPoints } from "../../../lib/pricing";
 import type { ContentType, PlanType } from "../../../lib/app-config";
 
@@ -8,20 +9,17 @@ export const runtime = "nodejs";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl) {
-  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
-}
-
-if (!serviceRoleKey) {
-  throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
-}
+if (!supabaseUrl) throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
+if (!serviceRoleKey) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+type PaidPlanType = "day" | "month" | "year";
 
 type SubscriptionPeriodRow = {
   id: string;
   user_id: string;
-  plan_type: "day" | "month" | "year";
+  plan_type: PaidPlanType;
   starts_at: string;
   ends_at: string;
   source: string;
@@ -30,24 +28,16 @@ type SubscriptionPeriodRow = {
 };
 
 type DisplayPlanItem = {
-  planType: "day" | "month" | "year";
+  planType: PaidPlanType;
   startsAt: string;
   endsAt: string;
 };
 
-function isSamePlanType(a: DisplayPlanItem, b: DisplayPlanItem) {
-  return a.planType === b.planType;
+function getIncludedFreeViews(planType: PaidPlanType) {
+  return APP_CONFIG.plans[planType].includedFreeViews;
 }
 
 function buildDisplayPlanQueue(periods: SubscriptionPeriodRow[]) {
-  if (!periods.length) {
-    return {
-      currentPlan: null as DisplayPlanItem | null,
-      futurePlans: [] as DisplayPlanItem[],
-      allMergedPlans: [] as DisplayPlanItem[]
-    };
-  }
-
   const sorted = [...periods].sort(
     (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
   );
@@ -70,37 +60,103 @@ function buildDisplayPlanQueue(periods: SubscriptionPeriodRow[]) {
 
     const prevEnds = new Date(prev.endsAt).getTime();
     const nextStarts = new Date(nextItem.startsAt).getTime();
-    const gapMs = Math.abs(nextStarts - prevEnds);
+    const touchesDirectly = Math.abs(nextStarts - prevEnds) <= 60 * 1000;
 
-    const touchesDirectly = gapMs <= 60 * 1000;
-
-    if (isSamePlanType(prev, nextItem) && touchesDirectly) {
+    if (prev.planType === nextItem.planType && touchesDirectly) {
       prev.endsAt = nextItem.endsAt;
-      continue;
+    } else {
+      merged.push(nextItem);
     }
-
-    merged.push(nextItem);
   }
 
   const now = Date.now();
 
-  let currentIndex = merged.findIndex((item) => {
+  const currentIndex = merged.findIndex((item) => {
     const starts = new Date(item.startsAt).getTime();
     const ends = new Date(item.endsAt).getTime();
     return now >= starts && now <= ends;
   });
 
-  if (currentIndex === -1) {
-    currentIndex = merged.findIndex((item) => new Date(item.startsAt).getTime() > now);
+  return {
+    currentPlan: currentIndex >= 0 ? merged[currentIndex] : null,
+    futurePlans: currentIndex >= 0 ? merged.slice(currentIndex + 1) : merged.filter((item) => new Date(item.startsAt).getTime() > now),
+    allMergedPlans: merged
+  };
+}
+
+async function syncProfileSubscriptionState(userId: string, profile: any, periods: SubscriptionPeriodRow[]) {
+  const now = Date.now();
+
+  const activePeriod = periods.find((item) => {
+    const starts = new Date(item.starts_at).getTime();
+    const ends = new Date(item.ends_at).getTime();
+    return now >= starts && now <= ends;
+  });
+
+  if (!activePeriod) {
+    if (
+      profile.plan_type !== "free" ||
+      profile.subscription_status !== "inactive" ||
+      profile.subscription_expires_at !== null ||
+      profile.billing_period !== null ||
+      Number(profile.free_views_remaining || 0) !== 0
+    ) {
+      await supabase
+        .from("profiles")
+        .update({
+          plan_type: "free",
+          subscription_status: "inactive",
+          subscription_expires_at: null,
+          billing_period: null,
+          free_views_remaining: 0
+        })
+        .eq("id", userId);
+
+      return {
+        ...profile,
+        plan_type: "free",
+        subscription_status: "inactive",
+        subscription_expires_at: null,
+        billing_period: null,
+        free_views_remaining: 0
+      };
+    }
+
+    return {
+      ...profile,
+      free_views_remaining: 0
+    };
   }
 
-  const currentPlan = currentIndex >= 0 ? merged[currentIndex] : null;
-  const futurePlans = currentIndex >= 0 ? merged.slice(currentIndex + 1) : merged;
+  const currentPlanType = activePeriod.plan_type;
+  const currentEndsAt = activePeriod.ends_at;
+  const periodChanged =
+    profile.plan_type !== currentPlanType ||
+    profile.subscription_expires_at !== currentEndsAt ||
+    profile.subscription_status !== "active";
+
+  const nextFreeViews = periodChanged
+    ? getIncludedFreeViews(currentPlanType)
+    : Number(profile.free_views_remaining || 0);
+
+  await supabase
+    .from("profiles")
+    .update({
+      plan_type: currentPlanType,
+      subscription_status: "active",
+      billing_period: currentPlanType,
+      subscription_expires_at: currentEndsAt,
+      free_views_remaining: nextFreeViews
+    })
+    .eq("id", userId);
 
   return {
-    currentPlan,
-    futurePlans,
-    allMergedPlans: merged
+    ...profile,
+    plan_type: currentPlanType,
+    subscription_status: "active",
+    billing_period: currentPlanType,
+    subscription_expires_at: currentEndsAt,
+    free_views_remaining: nextFreeViews
   };
 }
 
@@ -188,19 +244,18 @@ export async function GET(request: NextRequest) {
       .order("starts_at", { ascending: true });
 
     if (periodsError) {
-      return NextResponse.json(
-        { error: periodsError.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: periodsError.message }, { status: 500 });
     }
 
-    const displayPlanQueue = buildDisplayPlanQueue((periods || []) as SubscriptionPeriodRow[]);
+    const typedPeriods = (periods || []) as SubscriptionPeriodRow[];
+    const syncedProfile = await syncProfileSubscriptionState(userId, profile, typedPeriods);
+    const displayPlanQueue = buildDisplayPlanQueue(typedPeriods);
 
-    const planType = profile.plan_type as PlanType;
-    const creditBalance = Number(profile.credit_points_balance || 0);
+    const planType = syncedProfile.plan_type as PlanType;
+    const creditBalance = Number(syncedProfile.credit_points_balance || 0);
 
     return NextResponse.json({
-      profile,
+      profile: syncedProfile,
       qrCode,
       approxViewsFromCredit: {
         text: getApproxViewsFromCreditPoints(creditBalance, planType, "text" as ContentType),
