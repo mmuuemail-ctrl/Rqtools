@@ -16,7 +16,7 @@ import { type ActivationMode, type ContentType } from "../lib/app-config";
 type PlanType = "free" | "day" | "month" | "year";
 type SubscriptionStatus = "inactive" | "active" | "expired" | "canceled";
 type PrintUnit = "cm" | "inch";
-type SelectedPlan = "day" | "month" | "year";
+type SelectedPlan = "day" | "month" | "year" | "credit";
 type QrActivationChoice = "always" | "range";
 
 type MenuSection =
@@ -621,7 +621,7 @@ export default function DashboardPage() {
             {Math.floor(profileData?.profile.credit_points_balance || 0).toLocaleString()}.
           </div>
 
-          <div style={styles.menuSubTitle}>Vyber druh předplatného</div>
+          <div style={styles.menuSubTitle}>Vyber položku</div>
 
           <div style={styles.planChoiceGrid}>
             <button
@@ -656,60 +656,75 @@ export default function DashboardPage() {
             >
               roční
             </button>
-          </div>
-
-          <div style={styles.innerCard}>
-            <div style={styles.innerCardTitle}>{getPlanLabel(selectedPlan)}</div>
-
-            {selectedPlan === "day" ? (
-              <>
-                <label style={styles.inputLabel}>Počet dní</label>
-                <input type="number" min="1" step="1" defaultValue="1" style={styles.menuInput} />
-              </>
-            ) : null}
-
-            {selectedPlan === "month" ? (
-              <div style={styles.menuInfoBox}>
-                Měsíční plán se nastaví na 1 měsíc.
-              </div>
-            ) : null}
-
-            {selectedPlan === "year" ? (
-              <div style={styles.menuInfoBox}>
-                Roční plán se nastaví na 1 rok.
-              </div>
-            ) : null}
-
-            <label style={styles.inputLabel}>Kredit k nákupu</label>
-            <input type="number" min="0" step="1" defaultValue="0" style={styles.menuInput} />
 
             <button
               type="button"
-              style={styles.menuPrimaryButton}
-              onClick={() => showPending(`Nákup: ${getPlanLabel(selectedPlan)}`)}
-            >
-              pokračovat k nákupu
-            </button>
-          </div>
-
-          <div style={styles.innerCard}>
-            <div style={styles.innerCardTitle}>Dokoupit kredit</div>
-            <label style={styles.inputLabel}>Kredit celé číslo</label>
-            <input type="number" min="1" step="1" defaultValue="10" style={styles.menuInput} />
-            <button
-              type="button"
-              style={styles.menuPrimaryButton}
-              onClick={() => {
-                if (!profileData?.subscriptionPlans.currentPlan) {
-                  setMessage("Pro použití kreditu je potřeba mít aktivní předplatné.");
-                  return;
-                }
-                showPending("Dokoupení kreditu");
+              style={{
+                ...styles.menuToggleButton,
+                ...(selectedPlan === "credit" ? styles.menuToggleButtonActive : {})
               }}
+              onClick={() => setSelectedPlan("credit")}
             >
-              přidat kredit
+              jen kredit
             </button>
           </div>
+
+          {selectedPlan !== "credit" ? (
+            <div style={styles.innerCard}>
+              <div style={styles.innerCardTitle}>{getPlanLabel(selectedPlan)}</div>
+
+              {selectedPlan === "day" ? (
+                <>
+                  <label style={styles.inputLabel}>Počet dní</label>
+                  <input type="number" min="1" step="1" defaultValue="1" style={styles.menuInput} />
+                </>
+              ) : null}
+
+              {selectedPlan === "month" ? (
+                <div style={styles.menuInfoBox}>
+                  Měsíční plán se nastaví na 1 měsíc.
+                </div>
+              ) : null}
+
+              {selectedPlan === "year" ? (
+                <div style={styles.menuInfoBox}>
+                  Roční plán se nastaví na 1 rok.
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                style={styles.menuPrimaryButton}
+                onClick={() => showPending(`Nákup: ${getPlanLabel(selectedPlan)}`)}
+              >
+                pokračovat k nákupu předplatného
+              </button>
+            </div>
+          ) : null}
+
+          {selectedPlan === "credit" ? (
+            <div style={styles.innerCard}>
+              <div style={styles.innerCardTitle}>Jen kredit</div>
+              <div style={styles.menuInfoBox}>
+                Kredit je možné používat jen s aktivním předplatným.
+              </div>
+              <label style={styles.inputLabel}>Kredit celé číslo</label>
+              <input type="number" min="1" step="1" defaultValue="10" style={styles.menuInput} />
+              <button
+                type="button"
+                style={styles.menuPrimaryButton}
+                onClick={() => {
+                  if (!profileData?.subscriptionPlans.currentPlan) {
+                    setMessage("Pro použití kreditu je potřeba mít aktivní předplatné.");
+                    return;
+                  }
+                  showPending("Dokoupení kreditu");
+                }}
+              >
+                přidat kredit
+              </button>
+            </div>
+          ) : null}
         </div>
       );
     }
