@@ -16,6 +16,8 @@ import { type ActivationMode, type ContentType } from "../lib/app-config";
 type PlanType = "free" | "day" | "month" | "year";
 type SubscriptionStatus = "inactive" | "active" | "expired" | "canceled";
 
+type PrintUnit = "cm" | "inch";
+
 type ProfileResponse = {
   profile: {
     id: string;
@@ -113,6 +115,17 @@ function normalizeUrl(value: string) {
   return `https://${trimmed}`;
 }
 
+function normalizePrintSize(value: string) {
+  const normalized = value.replace(",", ".").trim();
+  const parsed = Number(normalized);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return Math.round(parsed * 100) / 100;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -134,6 +147,10 @@ export default function DashboardPage() {
 
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [draftFile, setDraftFile] = useState<File | null>(null);
+
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printUnit, setPrintUnit] = useState<PrintUnit>("cm");
+  const [printSize, setPrintSize] = useState("6.00");
 
   const BASE_WIDTH = 720;
   const BASE_HEIGHT = 1480;
@@ -281,6 +298,17 @@ export default function DashboardPage() {
     if (savingMedia) return;
     setShowMediaModal(false);
     setDraftFile(null);
+  }
+
+  function openPrintModal() {
+    setPrintUnit("cm");
+    setPrintSize("6.00");
+    setShowPrintModal(true);
+    setMessage("");
+  }
+
+  function closePrintModal() {
+    setShowPrintModal(false);
   }
 
   function buildBaseFormData(contentType: ContentType) {
@@ -475,6 +503,14 @@ export default function DashboardPage() {
   function handlePrintQr() {
     if (!qrCanvasRef.current) return;
 
+    const parsedSize = normalizePrintSize(printSize);
+
+    if (!parsedSize) {
+      setMessage("Zadej platnou velikost QR kódu.");
+      return;
+    }
+
+    const safeSize = parsedSize.toFixed(2);
     const dataUrl = qrCanvasRef.current.toDataURL("image/png");
     const printWindow = window.open("", "_blank", "width=900,height=700");
 
@@ -501,8 +537,8 @@ export default function DashboardPage() {
               text-align: center;
             }
             img {
-              width: 6cm;
-              height: 6cm;
+              width: ${safeSize}${printUnit};
+              height: ${safeSize}${printUnit};
               object-fit: contain;
               display: block;
               margin: 0 auto;
@@ -524,6 +560,7 @@ export default function DashboardPage() {
     `);
 
     printWindow.document.close();
+    setShowPrintModal(false);
   }
 
   async function handleLogout() {
@@ -622,7 +659,7 @@ export default function DashboardPage() {
               Copy qr link
             </button>
 
-            <button type="button" style={styles.smallActionButton} onClick={handlePrintQr}>
+            <button type="button" style={styles.smallActionButton} onClick={openPrintModal}>
               Print qr
             </button>
 
@@ -744,6 +781,59 @@ export default function DashboardPage() {
                 disabled={savingMedia}
               >
                 {savingMedia ? "ukladam..." : "potvrdit"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showPrintModal ? (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalBox}>
+            <div style={styles.modalTitle}>Velikost tisku QR</div>
+
+            <div style={styles.printGrid}>
+              <div>
+                <div style={styles.inputLabel}>Jednotka</div>
+                <select
+                  value={printUnit}
+                  onChange={(e) => setPrintUnit(e.target.value as PrintUnit)}
+                  style={styles.selectInput}
+                >
+                  <option value="cm">cm</option>
+                  <option value="inch">inch</option>
+                </select>
+              </div>
+
+              <div>
+                <div style={styles.inputLabel}>Velikost</div>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={printSize}
+                  onChange={(e) => setPrintSize(e.target.value)}
+                  onBlur={() => {
+                    const parsed = normalizePrintSize(printSize);
+                    if (parsed) setPrintSize(parsed.toFixed(2));
+                  }}
+                  style={styles.urlInput}
+                  placeholder="6.00"
+                />
+              </div>
+            </div>
+
+            <div style={styles.printHint}>
+              Přesnost velikosti je maximálně na 2 desetinná místa.
+            </div>
+
+            <div style={styles.modalButtons}>
+              <button type="button" style={styles.modalCancelButton} onClick={closePrintModal}>
+                zrusit
+              </button>
+
+              <button type="button" style={styles.modalConfirmButton} onClick={handlePrintQr}>
+                tisknout
               </button>
             </div>
           </div>
@@ -1029,6 +1119,39 @@ const styles: Record<string, CSSProperties> = {
     background: "#ffffff",
     color: "#000000",
     outline: "none"
+  },
+  selectInput: {
+    width: "100%",
+    minHeight: 72,
+    border: "5px solid #000000",
+    borderRadius: 22,
+    padding: "0 16px",
+    boxSizing: "border-box",
+    fontSize: 22,
+    fontWeight: 700,
+    background: "#ffffff",
+    color: "#000000",
+    outline: "none"
+  },
+  inputLabel: {
+    fontSize: 20,
+    fontWeight: 900,
+    marginBottom: 8
+  },
+  printGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 14
+  },
+  printHint: {
+    border: "5px solid #000000",
+    borderRadius: 22,
+    background: "#ffffff",
+    padding: 14,
+    fontSize: 18,
+    fontWeight: 800,
+    lineHeight: 1.35,
+    textAlign: "center"
   },
   fileInput: {
     width: "100%",
