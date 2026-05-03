@@ -15,8 +15,17 @@ import { type ActivationMode, type ContentType } from "../lib/app-config";
 
 type PlanType = "free" | "day" | "month" | "year";
 type SubscriptionStatus = "inactive" | "active" | "expired" | "canceled";
-
 type PrintUnit = "cm" | "inch";
+
+type MenuSection =
+  | "main"
+  | "subscription"
+  | "qrSettings"
+  | "history"
+  | "alerts"
+  | "regenerate"
+  | "language"
+  | "account";
 
 type ProfileResponse = {
   profile: {
@@ -152,6 +161,9 @@ export default function DashboardPage() {
   const [printUnit, setPrintUnit] = useState<PrintUnit>("cm");
   const [printSize, setPrintSize] = useState("6.00");
 
+  const [showMenuModal, setShowMenuModal] = useState(false);
+  const [activeMenuSection, setActiveMenuSection] = useState<MenuSection>("main");
+
   const BASE_WIDTH = 720;
   const BASE_HEIGHT = 1480;
 
@@ -263,6 +275,17 @@ export default function DashboardPage() {
 
     return profileData.qrCode.file_name || "Zatím není nahrané žádné medium.";
   }, [profileData]);
+
+  function openMenuModal() {
+    setActiveMenuSection("main");
+    setShowMenuModal(true);
+    setMessage("");
+  }
+
+  function closeMenuModal() {
+    setShowMenuModal(false);
+    setActiveMenuSection("main");
+  }
 
   function openTextModal() {
     setDraftText(profileData?.qrCode.text_content || "");
@@ -597,7 +620,7 @@ export default function DashboardPage() {
             <button
               type="button"
               style={{ ...styles.cardButton, ...styles.menuCard }}
-              onClick={() => setMessage("Menu uděláme v dalším kroku.")}
+              onClick={openMenuModal}
             >
               menu
             </button>
@@ -673,6 +696,178 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {showMenuModal ? (
+        <div style={styles.menuOverlay}>
+          <div style={styles.menuBox}>
+            <div style={styles.menuHeader}>
+              {activeMenuSection !== "main" ? (
+                <button
+                  type="button"
+                  style={styles.menuBackButton}
+                  onClick={() => setActiveMenuSection("main")}
+                >
+                  zpět
+                </button>
+              ) : (
+                <button type="button" style={styles.menuBackButton} onClick={closeMenuModal}>
+                  zavřít
+                </button>
+              )}
+
+              <div style={styles.menuTitle}>
+                {activeMenuSection === "main" ? "Menu" : getMenuSectionTitle(activeMenuSection)}
+              </div>
+
+              <button type="button" style={styles.menuCloseButton} onClick={closeMenuModal}>
+                ×
+              </button>
+            </div>
+
+            {activeMenuSection === "main" ? (
+              <div style={styles.menuGrid}>
+                <button
+                  type="button"
+                  style={styles.menuItemButton}
+                  onClick={() => setActiveMenuSection("subscription")}
+                >
+                  1. Předplatné a kredit
+                </button>
+
+                <button
+                  type="button"
+                  style={styles.menuItemButton}
+                  onClick={() => setActiveMenuSection("qrSettings")}
+                >
+                  2. Nastavení QR
+                </button>
+
+                <button
+                  type="button"
+                  style={styles.menuItemButton}
+                  onClick={() => setActiveMenuSection("history")}
+                >
+                  3. Historie
+                </button>
+
+                <button
+                  type="button"
+                  style={styles.menuItemButton}
+                  onClick={() => setActiveMenuSection("alerts")}
+                >
+                  4. Upozornění
+                </button>
+
+                <button
+                  type="button"
+                  style={styles.menuItemButton}
+                  onClick={() => setActiveMenuSection("regenerate")}
+                >
+                  5. Nový QR kód
+                </button>
+
+                <button
+                  type="button"
+                  style={styles.menuItemButton}
+                  onClick={() => setActiveMenuSection("language")}
+                >
+                  6. Jazyk
+                </button>
+
+                <button
+                  type="button"
+                  style={styles.menuItemButton}
+                  onClick={() => setActiveMenuSection("account")}
+                >
+                  7. Účet
+                </button>
+              </div>
+            ) : (
+              <div style={styles.menuContent}>
+                {activeMenuSection === "subscription" ? (
+                  <>
+                    <div style={styles.menuSectionTitle}>Předplatné a kredit</div>
+                    <div style={styles.menuText}>
+                      Tady bude nákup denního plánu s počtem dní, měsíčního plánu, ročního
+                      plánu a dokoupení kreditu.
+                    </div>
+                    <button
+                      type="button"
+                      style={styles.menuPrimaryButton}
+                      onClick={() => router.push("/subscribe")}
+                    >
+                      otevřít stránku předplatného
+                    </button>
+                  </>
+                ) : null}
+
+                {activeMenuSection === "qrSettings" ? (
+                  <>
+                    <div style={styles.menuSectionTitle}>Nastavení QR</div>
+                    <div style={styles.menuText}>
+                      Tady bude nastavení od kdy do kdy je QR funkční, režim pořád aktivní,
+                      limit views za hodinu/den/měsíc a text při neaktivním QR.
+                    </div>
+                  </>
+                ) : null}
+
+                {activeMenuSection === "history" ? (
+                  <>
+                    <div style={styles.menuSectionTitle}>Historie</div>
+                    <div style={styles.menuText}>
+                      Tady bude výběr od data a hodiny do data a hodiny a počet validních
+                      scanů za zvolené období.
+                    </div>
+                  </>
+                ) : null}
+
+                {activeMenuSection === "alerts" ? (
+                  <>
+                    <div style={styles.menuSectionTitle}>Upozornění</div>
+                    <div style={styles.menuText}>
+                      Tady bude nastavení, při kolika dostupných views se má zobrazit nebo
+                      odeslat upozornění na nízký kredit.
+                    </div>
+                  </>
+                ) : null}
+
+                {activeMenuSection === "regenerate" ? (
+                  <>
+                    <div style={styles.menuSectionTitle}>Vygenerovat nový QR</div>
+                    <div style={styles.menuWarning}>
+                      Tady bude tlačítko pro vygenerování nového QR kódu. Po kliknutí se
+                      zobrazí varování, že současný QR kód přestane navždy fungovat.
+                    </div>
+                  </>
+                ) : null}
+
+                {activeMenuSection === "language" ? (
+                  <>
+                    <div style={styles.menuSectionTitle}>Jazyk</div>
+                    <div style={styles.menuText}>
+                      Zatím bude dostupná čeština. Později se sem přidá angličtina a další
+                      jazykové verze.
+                    </div>
+                    <button type="button" style={styles.menuPrimaryButton}>
+                      čeština
+                    </button>
+                  </>
+                ) : null}
+
+                {activeMenuSection === "account" ? (
+                  <>
+                    <div style={styles.menuSectionTitle}>Účet</div>
+                    <div style={styles.menuText}>
+                      Tady bude jméno organizace nebo uživatele, adresa, email, telefon a
+                      změna hesla.
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {showTextModal ? (
         <div style={styles.modalOverlay}>
@@ -843,6 +1038,17 @@ export default function DashboardPage() {
       {message ? <div style={styles.messageBox}>{message}</div> : null}
     </main>
   );
+}
+
+function getMenuSectionTitle(section: MenuSection) {
+  if (section === "subscription") return "Předplatné a kredit";
+  if (section === "qrSettings") return "Nastavení QR";
+  if (section === "history") return "Historie";
+  if (section === "alerts") return "Upozornění";
+  if (section === "regenerate") return "Nový QR kód";
+  if (section === "language") return "Jazyk";
+  if (section === "account") return "Účet";
+  return "Menu";
 }
 
 const styles: Record<string, CSSProperties> = {
@@ -1063,6 +1269,115 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 28,
     fontWeight: 700,
     textAlign: "center"
+  },
+  menuOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0, 0, 0, 0.45)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 18,
+    boxSizing: "border-box",
+    zIndex: 120
+  },
+  menuBox: {
+    width: "100%",
+    maxWidth: 680,
+    maxHeight: "92vh",
+    overflow: "auto",
+    border: "6px solid #000000",
+    borderRadius: 32,
+    background: "#c8d7e7",
+    padding: 20,
+    boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+    gap: 18
+  },
+  menuHeader: {
+    display: "grid",
+    gridTemplateColumns: "120px 1fr 60px",
+    gap: 10,
+    alignItems: "center"
+  },
+  menuBackButton: {
+    minHeight: 58,
+    border: "5px solid #000000",
+    borderRadius: 18,
+    background: "#ffffff",
+    fontSize: 20,
+    fontWeight: 900,
+    cursor: "pointer"
+  },
+  menuCloseButton: {
+    minHeight: 58,
+    border: "5px solid #000000",
+    borderRadius: 18,
+    background: "#ead790",
+    fontSize: 30,
+    fontWeight: 900,
+    cursor: "pointer"
+  },
+  menuTitle: {
+    fontSize: 32,
+    fontWeight: 900,
+    textAlign: "center",
+    lineHeight: 1.1
+  },
+  menuGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: 12
+  },
+  menuItemButton: {
+    minHeight: 76,
+    border: "5px solid #000000",
+    borderRadius: 22,
+    background: "#ffffff",
+    fontSize: 22,
+    fontWeight: 900,
+    textAlign: "left",
+    padding: "0 18px",
+    cursor: "pointer"
+  },
+  menuContent: {
+    border: "5px solid #000000",
+    borderRadius: 24,
+    background: "#ffffff",
+    padding: 18,
+    boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+    gap: 14
+  },
+  menuSectionTitle: {
+    fontSize: 28,
+    fontWeight: 900,
+    lineHeight: 1.15
+  },
+  menuText: {
+    fontSize: 20,
+    fontWeight: 700,
+    lineHeight: 1.45
+  },
+  menuWarning: {
+    border: "5px solid #000000",
+    borderRadius: 20,
+    background: "#ead790",
+    padding: 14,
+    fontSize: 20,
+    fontWeight: 900,
+    lineHeight: 1.4
+  },
+  menuPrimaryButton: {
+    minHeight: 70,
+    border: "5px solid #000000",
+    borderRadius: 20,
+    background: "#ead790",
+    fontSize: 22,
+    fontWeight: 900,
+    cursor: "pointer"
   },
   modalOverlay: {
     position: "fixed",
