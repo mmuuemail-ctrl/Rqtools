@@ -1,6 +1,13 @@
 "use client";
 
-import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  CSSProperties,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import QRCode from "qrcode";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
@@ -113,6 +120,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [savingText, setSavingText] = useState(false);
   const [savingUrl, setSavingUrl] = useState(false);
+  const [savingMedia, setSavingMedia] = useState(false);
   const [message, setMessage] = useState("");
   const [userId, setUserId] = useState("");
   const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
@@ -123,6 +131,9 @@ export default function DashboardPage() {
 
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [draftUrl, setDraftUrl] = useState("");
+
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [draftFile, setDraftFile] = useState<File | null>(null);
 
   const BASE_WIDTH = 720;
   const BASE_HEIGHT = 1480;
@@ -260,6 +271,18 @@ export default function DashboardPage() {
     setDraftUrl("");
   }
 
+  function openMediaModal() {
+    setDraftFile(null);
+    setShowMediaModal(true);
+    setMessage("");
+  }
+
+  function closeMediaModal() {
+    if (savingMedia) return;
+    setShowMediaModal(false);
+    setDraftFile(null);
+  }
+
   function buildBaseFormData(contentType: ContentType) {
     if (!profileData || !userId) return null;
 
@@ -382,6 +405,50 @@ export default function DashboardPage() {
       setMessage("URL se nepodařilo uložit.");
     } finally {
       setSavingUrl(false);
+    }
+  }
+
+  async function confirmMediaModal() {
+    if (!profileData || !userId) return;
+
+    if (!draftFile) {
+      setMessage("Nejdřív vyber soubor.");
+      return;
+    }
+
+    try {
+      setSavingMedia(true);
+      setMessage("");
+
+      const formData = buildBaseFormData("media");
+      if (!formData) return;
+
+      formData.append("textContent", "");
+      formData.append("customUrl", "");
+      formData.append("file", draftFile);
+
+      const res = await fetch("/api/qr/update", {
+        method: "POST",
+        body: formData
+      });
+
+      const dataJson = await res.json();
+
+      if (!res.ok) {
+        setMessage(dataJson?.error || "Media se nepodařilo uložit.");
+        return;
+      }
+
+      await loadProfile(userId);
+
+      setShowMediaModal(false);
+      setDraftFile(null);
+      setMessage("Media byla uložena.");
+    } catch (error) {
+      console.error(error);
+      setMessage("Media se nepodařilo uložit.");
+    } finally {
+      setSavingMedia(false);
     }
   }
 
@@ -534,11 +601,7 @@ export default function DashboardPage() {
               url
             </button>
 
-            <button
-              type="button"
-              style={styles.bigOptionButton}
-              onClick={() => setMessage("Media nastavíme v dalším kroku.")}
-            >
+            <button type="button" style={styles.bigOptionButton} onClick={openMediaModal}>
               media
             </button>
           </section>
@@ -640,6 +703,47 @@ export default function DashboardPage() {
                 disabled={savingUrl}
               >
                 {savingUrl ? "ukladam..." : "potvrdit"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showMediaModal ? (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalBox}>
+            <div style={styles.modalTitle}>Vybrat media</div>
+
+            <input
+              type="file"
+              onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                setDraftFile(e.target.files?.[0] || null);
+              }}
+              style={styles.fileInput}
+              disabled={savingMedia}
+            />
+
+            <div style={styles.selectedFileBox}>
+              {draftFile ? draftFile.name : "Zatím není vybraný žádný soubor."}
+            </div>
+
+            <div style={styles.modalButtons}>
+              <button
+                type="button"
+                style={styles.modalCancelButton}
+                onClick={closeMediaModal}
+                disabled={savingMedia}
+              >
+                zrusit
+              </button>
+
+              <button
+                type="button"
+                style={styles.modalConfirmButton}
+                onClick={confirmMediaModal}
+                disabled={savingMedia}
+              >
+                {savingMedia ? "ukladam..." : "potvrdit"}
               </button>
             </div>
           </div>
@@ -925,6 +1029,32 @@ const styles: Record<string, CSSProperties> = {
     background: "#ffffff",
     color: "#000000",
     outline: "none"
+  },
+  fileInput: {
+    width: "100%",
+    border: "5px solid #000000",
+    borderRadius: 22,
+    padding: 16,
+    boxSizing: "border-box",
+    fontSize: 18,
+    fontWeight: 700,
+    background: "#ffffff",
+    color: "#000000",
+    outline: "none"
+  },
+  selectedFileBox: {
+    width: "100%",
+    border: "5px solid #000000",
+    borderRadius: 22,
+    padding: 16,
+    boxSizing: "border-box",
+    fontSize: 20,
+    fontWeight: 800,
+    lineHeight: 1.35,
+    background: "#ffffff",
+    color: "#000000",
+    wordBreak: "break-word",
+    textAlign: "center"
   },
   modalButtons: {
     display: "grid",
