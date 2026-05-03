@@ -16,6 +16,8 @@ import { type ActivationMode, type ContentType } from "../lib/app-config";
 type PlanType = "free" | "day" | "month" | "year";
 type SubscriptionStatus = "inactive" | "active" | "expired" | "canceled";
 type PrintUnit = "cm" | "inch";
+type SelectedPlan = "day" | "month" | "year";
+type QrActivationChoice = "always" | "range";
 
 type MenuSection =
   | "main"
@@ -174,6 +176,8 @@ export default function DashboardPage() {
 
   const [showMenuModal, setShowMenuModal] = useState(false);
   const [activeMenuSection, setActiveMenuSection] = useState<MenuSection>("main");
+  const [selectedPlan, setSelectedPlan] = useState<SelectedPlan>("day");
+  const [qrActivationChoice, setQrActivationChoice] = useState<QrActivationChoice>("always");
 
   const BASE_WIDTH = 720;
   const BASE_HEIGHT = 1480;
@@ -617,37 +621,75 @@ export default function DashboardPage() {
             {Math.floor(profileData?.profile.credit_points_balance || 0).toLocaleString()}.
           </div>
 
-          <div style={styles.menuSubTitle}>Koupit předplatné</div>
+          <div style={styles.menuSubTitle}>Vyber druh předplatného</div>
 
-          <div style={styles.menuCardGrid}>
-            <div style={styles.innerCard}>
-              <div style={styles.innerCardTitle}>Denní plán</div>
-              <label style={styles.inputLabel}>Počet dní</label>
-              <input type="number" min="1" step="1" defaultValue="1" style={styles.menuInput} />
-              <label style={styles.inputLabel}>Kredit k nákupu</label>
-              <input type="number" min="0" step="1" defaultValue="0" style={styles.menuInput} />
-              <button type="button" style={styles.menuPrimaryButton} onClick={() => showPending("Denní plán")}>
-                koupit denní plán
-              </button>
-            </div>
+          <div style={styles.planChoiceGrid}>
+            <button
+              type="button"
+              style={{
+                ...styles.menuToggleButton,
+                ...(selectedPlan === "day" ? styles.menuToggleButtonActive : {})
+              }}
+              onClick={() => setSelectedPlan("day")}
+            >
+              jednodenní
+            </button>
 
-            <div style={styles.innerCard}>
-              <div style={styles.innerCardTitle}>Měsíční plán</div>
-              <label style={styles.inputLabel}>Kredit k nákupu</label>
-              <input type="number" min="0" step="1" defaultValue="0" style={styles.menuInput} />
-              <button type="button" style={styles.menuPrimaryButton} onClick={() => showPending("Měsíční plán")}>
-                koupit měsíční plán
-              </button>
-            </div>
+            <button
+              type="button"
+              style={{
+                ...styles.menuToggleButton,
+                ...(selectedPlan === "month" ? styles.menuToggleButtonActive : {})
+              }}
+              onClick={() => setSelectedPlan("month")}
+            >
+              měsíční
+            </button>
 
-            <div style={styles.innerCard}>
-              <div style={styles.innerCardTitle}>Roční plán</div>
-              <label style={styles.inputLabel}>Kredit k nákupu</label>
-              <input type="number" min="0" step="1" defaultValue="0" style={styles.menuInput} />
-              <button type="button" style={styles.menuPrimaryButton} onClick={() => showPending("Roční plán")}>
-                koupit roční plán
-              </button>
-            </div>
+            <button
+              type="button"
+              style={{
+                ...styles.menuToggleButton,
+                ...(selectedPlan === "year" ? styles.menuToggleButtonActive : {})
+              }}
+              onClick={() => setSelectedPlan("year")}
+            >
+              roční
+            </button>
+          </div>
+
+          <div style={styles.innerCard}>
+            <div style={styles.innerCardTitle}>{getPlanLabel(selectedPlan)}</div>
+
+            {selectedPlan === "day" ? (
+              <>
+                <label style={styles.inputLabel}>Počet dní</label>
+                <input type="number" min="1" step="1" defaultValue="1" style={styles.menuInput} />
+              </>
+            ) : null}
+
+            {selectedPlan === "month" ? (
+              <div style={styles.menuInfoBox}>
+                Měsíční plán se nastaví na 1 měsíc.
+              </div>
+            ) : null}
+
+            {selectedPlan === "year" ? (
+              <div style={styles.menuInfoBox}>
+                Roční plán se nastaví na 1 rok.
+              </div>
+            ) : null}
+
+            <label style={styles.inputLabel}>Kredit k nákupu</label>
+            <input type="number" min="0" step="1" defaultValue="0" style={styles.menuInput} />
+
+            <button
+              type="button"
+              style={styles.menuPrimaryButton}
+              onClick={() => showPending(`Nákup: ${getPlanLabel(selectedPlan)}`)}
+            >
+              pokračovat k nákupu
+            </button>
           </div>
 
           <div style={styles.innerCard}>
@@ -678,25 +720,46 @@ export default function DashboardPage() {
           <div style={styles.menuSectionTitle}>Nastavení QR</div>
 
           <div style={styles.menuSubTitle}>Kdy má být QR funkční</div>
-          <div style={styles.menuCardGrid}>
-            <button type="button" style={styles.menuToggleButton} onClick={() => showPending("QR pořád aktivní")}>
-              pořád aktivní
+          <div style={styles.planChoiceGrid}>
+            <button
+              type="button"
+              style={{
+                ...styles.menuToggleButton,
+                ...(qrActivationChoice === "always" ? styles.menuToggleButtonActive : {})
+              }}
+              onClick={() => setQrActivationChoice("always")}
+            >
+              pořád
             </button>
-            <button type="button" style={styles.menuToggleButton} onClick={() => showPending("QR podle času")}>
+
+            <button
+              type="button"
+              style={{
+                ...styles.menuToggleButton,
+                ...(qrActivationChoice === "range" ? styles.menuToggleButtonActive : {})
+              }}
+              onClick={() => setQrActivationChoice("range")}
+            >
               od / do
             </button>
           </div>
 
-          <div style={styles.menuTwoCols}>
-            <div>
-              <label style={styles.inputLabel}>Aktivní od</label>
-              <input type="datetime-local" style={styles.menuInput} />
+          {qrActivationChoice === "always" ? (
+            <div style={styles.menuInfoBox}>
+              QR bude funkční pořád, dokud to dovoluje předplatné, kredit a ostatní limity.
             </div>
-            <div>
-              <label style={styles.inputLabel}>Aktivní do</label>
-              <input type="datetime-local" style={styles.menuInput} />
+          ) : (
+            <div style={styles.menuTwoCols}>
+              <div>
+                <label style={styles.inputLabel}>Aktivní od</label>
+                <input type="datetime-local" style={styles.menuInput} />
+              </div>
+              <div>
+                <label style={styles.inputLabel}>Aktivní do</label>
+                <input type="datetime-local" style={styles.menuInput} />
+              </div>
             </div>
-          </div>
+          )}
 
           <div style={styles.menuSubTitle}>Limit views</div>
           <div style={styles.menuTwoCols}>
@@ -765,22 +828,29 @@ export default function DashboardPage() {
     }
 
     if (activeMenuSection === "alerts") {
+      const currentThousands = Math.floor(
+        Number(profileData?.profile.low_views_alert_threshold || 0) / 1000
+      );
+
       return (
         <div style={styles.menuPanelStack}>
           <div style={styles.menuSectionTitle}>Upozornění</div>
 
           <div style={styles.menuInfoBox}>
-            Dostupné views se budou počítat jako views zdarma + odhad views z kreditu podle typu obsahu.
+            Upozornění se nastavuje po tisících views. Například 10 znamená upozornit při poklesu pod 10 000 dostupných views.
           </div>
 
-          <label style={styles.inputLabel}>Upozornit při poklesu pod počet views</label>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            defaultValue={profileData?.profile.low_views_alert_threshold || 0}
-            style={styles.menuInput}
-          />
+          <label style={styles.inputLabel}>Upozornit při poklesu pod počet tisíc views</label>
+          <div style={styles.menuTwoCols}>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              defaultValue={currentThousands}
+              style={styles.menuInput}
+            />
+            <div style={styles.menuInfoBox}>× 1000 views</div>
+          </div>
 
           <div style={styles.menuCardGrid}>
             <button type="button" style={styles.menuToggleButton} onClick={() => showPending("Upozornění v aplikaci")}>
@@ -791,7 +861,7 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          <button type="button" style={styles.menuPrimaryButton} onClick={() => showPending("Nastavení upozornění")}>
+          <button type="button" style={styles.menuPrimaryButton} onClick={() => showPending("Nastavení upozornění")}> 
             uložit upozornění
           </button>
         </div>
@@ -1499,6 +1569,11 @@ const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: "1fr",
     gap: 12
   },
+  planChoiceGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 12
+  },
   innerCard: {
     border: "5px solid #000000",
     borderRadius: 22,
@@ -1555,6 +1630,11 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 20,
     fontWeight: 900,
     cursor: "pointer"
+  },
+  menuToggleButtonActive: {
+    background: "#ead790",
+    transform: "translateY(2px)",
+    boxShadow: "inset 0 0 0 3px rgba(0,0,0,0.12)"
   },
   menuPrimaryButton: {
     minHeight: 70,
