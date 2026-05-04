@@ -1475,10 +1475,9 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 120
   },
   menuBox: {
-    width: "100%",
-    maxWidth: 720,
-    maxHeight: "min(1480px, calc(100vh - 20px))",
-    overflow: "auto",
+    width: "min(calc(100vw - 20px), 720px, calc((100vh - 20px) * 0.486486))",
+    aspectRatio: "720 / 1480",
+    overflow: "hidden",
     border: "6px solid #000000",
     borderRadius: 34,
     background: "#ead790",
@@ -1492,7 +1491,8 @@ const styles: Record<string, CSSProperties> = {
     display: "grid",
     gridTemplateColumns: "120px 1fr 60px",
     gap: 12,
-    alignItems: "center"
+    alignItems: "center",
+    flexShrink: 0
   },
   menuBackButton: {
     minHeight: 58,
@@ -1523,7 +1523,10 @@ const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: "1fr",
     gap: 12,
     padding: 0,
-    boxSizing: "border-box"
+    boxSizing: "border-box",
+    flex: 1,
+    minHeight: 0,
+    overflow: "auto"
   },
   menuItemButton: {
     minHeight: 78,
@@ -1545,12 +1548,16 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     flexDirection: "column",
     gap: 14,
-    minHeight: 0
+    flex: 1,
+    minHeight: 0,
+    overflow: "auto"
   },
   menuPanelStack: {
     display: "flex",
     flexDirection: "column",
-    gap: 14
+    gap: 12,
+    minHeight: "100%",
+    justifyContent: "flex-start"
   },
   menuSectionTitle: {
     fontSize: 28,
@@ -1608,7 +1615,7 @@ const styles: Record<string, CSSProperties> = {
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
-    gap: 12
+    gap: 10
   },
   innerCardTitle: {
     fontSize: 22,
@@ -1622,7 +1629,7 @@ const styles: Record<string, CSSProperties> = {
   },
   menuInput: {
     width: "100%",
-    minHeight: 66,
+    minHeight: 62,
     border: "6px solid #000000",
     borderRadius: 28,
     padding: "0 12px",
@@ -1649,7 +1656,7 @@ const styles: Record<string, CSSProperties> = {
     outline: "none"
   },
   menuToggleButton: {
-    minHeight: 72,
+    minHeight: 68,
     border: "6px solid #000000",
     borderRadius: 34,
     background: "#ffffff",
@@ -1663,7 +1670,7 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: "inset 0 0 0 3px rgba(0,0,0,0.12)"
   },
   menuPrimaryButton: {
-    minHeight: 72,
+    minHeight: 68,
     border: "6px solid #000000",
     borderRadius: 34,
     background: "#ead790",
@@ -1681,7 +1688,7 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer"
   },
   disabledButton: {
-    minHeight: 72,
+    minHeight: 68,
     border: "6px solid #000000",
     borderRadius: 34,
     background: "#dddddd",
@@ -1715,13 +1722,12 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 100
   },
   modalBox: {
-    width: "100%",
-    maxWidth: 520,
-    maxHeight: "min(1480px, calc(100vh - 20px))",
+    width: "min(calc(100vw - 20px), 720px, calc((100vh - 20px) * 0.486486))",
+    aspectRatio: "720 / 1480",
     overflow: "auto",
     border: "6px solid #000000",
     borderRadius: 34,
-    background: "#c8d7e7",
+    background: "#ead790",
     padding: 12,
     boxSizing: "border-box",
     display: "flex",
@@ -1735,7 +1741,7 @@ const styles: Record<string, CSSProperties> = {
   },
   textArea: {
     width: "100%",
-    minHeight: 210,
+    minHeight: 260,
     resize: "vertical",
     border: "6px solid #000000",
     borderRadius: 34,
