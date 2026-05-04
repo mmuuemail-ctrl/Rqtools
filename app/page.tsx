@@ -732,8 +732,6 @@ export default function DashboardPage() {
     if (activeMenuSection === "qrSettings") {
       return (
         <div style={styles.menuPanelStack}>
-          <div style={styles.menuSectionTitle}>Nastavení QR</div>
-
           <div style={styles.menuSubTitle}>Kdy má být QR funkční</div>
           <div style={styles.qrChoiceGrid}>
             <button
@@ -764,7 +762,7 @@ export default function DashboardPage() {
               QR bude funkční pořád, dokud to dovoluje předplatné, kredit a ostatní limity.
             </div>
           ) : (
-            <div style={styles.menuTwoCols}>
+            <div style={styles.historyDateStack}>
               <div>
                 <label style={styles.inputLabel}>Aktivní od</label>
                 <input type="datetime-local" style={styles.menuInput} />
@@ -800,7 +798,7 @@ export default function DashboardPage() {
           />
 
           <div style={styles.menuInfoBox}>
-            Náhled fallback textu se nebude účtovat jako placený scan, aby neodebíral kredit.
+            Text, který se zobrazí lidem po naskenování, když QR kód nebude aktivní.
           </div>
 
           <button type="button" style={styles.menuPrimaryButton} onClick={() => showPending("Nastavení QR")}>
