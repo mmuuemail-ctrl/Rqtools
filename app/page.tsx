@@ -628,11 +628,22 @@ export default function DashboardPage() {
               type="button"
               style={{
                 ...styles.menuToggleButton,
+                ...(selectedPlan === "credit" ? styles.menuToggleButtonActive : {})
+              }}
+              onClick={() => setSelectedPlan("credit")}
+            >
+              kredit
+            </button>
+
+            <button
+              type="button"
+              style={{
+                ...styles.menuToggleButton,
                 ...(selectedPlan === "day" ? styles.menuToggleButtonActive : {})
               }}
               onClick={() => setSelectedPlan("day")}
             >
-              jednodenní
+              denní
             </button>
 
             <button
@@ -655,17 +666,6 @@ export default function DashboardPage() {
               onClick={() => setSelectedPlan("year")}
             >
               roční
-            </button>
-
-            <button
-              type="button"
-              style={{
-                ...styles.menuToggleButton,
-                ...(selectedPlan === "credit" ? styles.menuToggleButtonActive : {})
-              }}
-              onClick={() => setSelectedPlan("credit")}
-            >
-              jen kredit
             </button>
           </div>
 
@@ -735,7 +735,7 @@ export default function DashboardPage() {
           <div style={styles.menuSectionTitle}>Nastavení QR</div>
 
           <div style={styles.menuSubTitle}>Kdy má být QR funkční</div>
-          <div style={styles.planChoiceGrid}>
+          <div style={styles.qrChoiceGrid}>
             <button
               type="button"
               style={{
@@ -1473,8 +1473,8 @@ const styles: Record<string, CSSProperties> = {
   },
   menuBox: {
     width: "100%",
-    maxWidth: 680,
-    maxHeight: "92vh",
+    maxWidth: 720,
+    maxHeight: "min(1480px, calc(100vh - 20px))",
     overflow: "auto",
     border: "6px solid #000000",
     borderRadius: 32,
@@ -1586,7 +1586,12 @@ const styles: Record<string, CSSProperties> = {
   },
   planChoiceGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: 12
+  },
+  qrChoiceGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 12
   },
   innerCard: {
