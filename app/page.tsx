@@ -815,7 +815,7 @@ export default function DashboardPage() {
         <div style={styles.menuPanelStack}>
           <div style={styles.menuSectionTitle}>Historie scanů</div>
 
-          <div style={styles.menuTwoCols}>
+          <div style={styles.historyDateStack}>
             <div>
               <label style={styles.inputLabel}>Od</label>
               <input type="datetime-local" style={styles.menuInput} />
@@ -1283,7 +1283,7 @@ const styles: Record<string, CSSProperties> = {
   },
   cardButton: {
     border: "6px solid #000000",
-    borderRadius: 26,
+    borderRadius: 34,
     background: "#c8d7e7",
     cursor: "pointer",
     minHeight: 122,
@@ -1298,7 +1298,7 @@ const styles: Record<string, CSSProperties> = {
   },
   infoCard: {
     border: "6px solid #000000",
-    borderRadius: 26,
+    borderRadius: 34,
     background: "#c8d7e7",
     minHeight: 122,
     padding: 14,
@@ -1333,7 +1333,7 @@ const styles: Record<string, CSSProperties> = {
   },
   wideCard: {
     border: "6px solid #000000",
-    borderRadius: 28,
+    borderRadius: 34,
     background: "#c8d7e7",
     padding: 18,
     boxSizing: "border-box",
@@ -1358,7 +1358,7 @@ const styles: Record<string, CSSProperties> = {
   bigOptionButton: {
     minHeight: 132,
     border: "6px solid #000000",
-    borderRadius: 28,
+    borderRadius: 34,
     background: "#c8d7e7",
     fontSize: 52,
     fontWeight: 800,
@@ -1371,7 +1371,7 @@ const styles: Record<string, CSSProperties> = {
     margin: "0 auto",
     minHeight: 380,
     border: "6px solid #000000",
-    borderRadius: 60,
+    borderRadius: 34,
     background: "#c8d7e7",
     padding: 24,
     boxSizing: "border-box",
@@ -1405,7 +1405,7 @@ const styles: Record<string, CSSProperties> = {
     margin: "0 auto",
     minHeight: 300,
     border: "6px solid #000000",
-    borderRadius: 42,
+    borderRadius: 34,
     background: "#c8d7e7",
     padding: 22,
     boxSizing: "border-box",
@@ -1432,7 +1432,7 @@ const styles: Record<string, CSSProperties> = {
   smallActionButton: {
     minHeight: 104,
     border: "6px solid #000000",
-    borderRadius: 24,
+    borderRadius: 34,
     background: "#c8d7e7",
     fontSize: 24,
     fontWeight: 800,
@@ -1444,7 +1444,7 @@ const styles: Record<string, CSSProperties> = {
     width: "100%",
     minHeight: 98,
     border: "6px solid #000000",
-    borderRadius: 24,
+    borderRadius: 34,
     background: "#c8d7e7",
     fontSize: 38,
     fontWeight: 800,
@@ -1526,7 +1526,8 @@ const styles: Record<string, CSSProperties> = {
     boxSizing: "border-box",
     flex: 1,
     minHeight: 0,
-    overflow: "auto"
+    overflow: "auto",
+    overflowX: "hidden"
   },
   menuItemButton: {
     minHeight: 78,
@@ -1550,7 +1551,8 @@ const styles: Record<string, CSSProperties> = {
     gap: 14,
     flex: 1,
     minHeight: 0,
-    overflow: "auto"
+    overflow: "auto",
+    overflowX: "hidden"
   },
   menuPanelStack: {
     display: "flex",
@@ -1599,7 +1601,7 @@ const styles: Record<string, CSSProperties> = {
   },
   planChoiceGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 12
   },
   qrChoiceGrid: {
@@ -1625,6 +1627,11 @@ const styles: Record<string, CSSProperties> = {
   menuTwoCols: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
+    gap: 12
+  },
+  historyDateStack: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
     gap: 12
   },
   menuInput: {
@@ -1725,6 +1732,7 @@ const styles: Record<string, CSSProperties> = {
     width: "min(calc(100vw - 20px), 720px, calc((100vh - 20px) * 0.486486))",
     aspectRatio: "720 / 1480",
     overflow: "auto",
+    overflowX: "hidden",
     border: "6px solid #000000",
     borderRadius: 34,
     background: "#ead790",
