@@ -1272,7 +1272,7 @@ const styles: Record<string, CSSProperties> = {
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
-    gap: 22,
+    gap: 18,
     overflow: "hidden"
   },
   topRow: {
@@ -1455,12 +1455,13 @@ const styles: Record<string, CSSProperties> = {
     maxWidth: 540,
     margin: "0 auto",
     border: "6px solid #000000",
-    borderRadius: 28,
+    borderRadius: 34,
     background: "#c8d7e7",
-    padding: 28,
+    padding: 12,
     fontSize: 28,
     fontWeight: 700,
-    textAlign: "center"
+    textAlign: "center",
+    boxSizing: "border-box"
   },
   menuOverlay: {
     position: "fixed",
@@ -1469,7 +1470,7 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: 18,
+    padding: 10,
     boxSizing: "border-box",
     zIndex: 120
   },
@@ -1479,18 +1480,18 @@ const styles: Record<string, CSSProperties> = {
     maxHeight: "min(1480px, calc(100vh - 20px))",
     overflow: "auto",
     border: "6px solid #000000",
-    borderRadius: 32,
-    background: "#c8d7e7",
-    padding: 20,
+    borderRadius: 34,
+    background: "#ead790",
+    padding: 12,
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
-    gap: 18
+    gap: 12
   },
   menuHeader: {
     display: "grid",
     gridTemplateColumns: "120px 1fr 60px",
-    gap: 10,
+    gap: 12,
     alignItems: "center"
   },
   menuBackButton: {
@@ -1520,12 +1521,14 @@ const styles: Record<string, CSSProperties> = {
   menuGrid: {
     display: "grid",
     gridTemplateColumns: "1fr",
-    gap: 12
+    gap: 12,
+    padding: 0,
+    boxSizing: "border-box"
   },
   menuItemButton: {
-    minHeight: 76,
-    border: "5px solid #000000",
-    borderRadius: 22,
+    minHeight: 78,
+    border: "6px solid #000000",
+    borderRadius: 34,
     background: "#ffffff",
     fontSize: 22,
     fontWeight: 900,
@@ -1534,14 +1537,15 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer"
   },
   menuContent: {
-    border: "5px solid #000000",
-    borderRadius: 24,
-    background: "#ffffff",
-    padding: 18,
+    border: "6px solid #000000",
+    borderRadius: 34,
+    background: "#c8d7e7",
+    padding: 12,
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
-    gap: 14
+    gap: 14,
+    minHeight: 0
   },
   menuPanelStack: {
     display: "flex",
@@ -1564,8 +1568,8 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.45
   },
   menuWarning: {
-    border: "5px solid #000000",
-    borderRadius: 20,
+    border: "6px solid #000000",
+    borderRadius: 34,
     background: "#ead790",
     padding: 14,
     fontSize: 20,
@@ -1573,8 +1577,8 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.4
   },
   menuInfoBox: {
-    border: "5px solid #000000",
-    borderRadius: 20,
+    border: "6px solid #000000",
+    borderRadius: 34,
     background: "#eef6ff",
     padding: 14,
     fontSize: 18,
@@ -1597,14 +1601,14 @@ const styles: Record<string, CSSProperties> = {
     gap: 12
   },
   innerCard: {
-    border: "5px solid #000000",
-    borderRadius: 22,
+    border: "6px solid #000000",
+    borderRadius: 34,
     background: "#ffffff",
-    padding: 14,
+    padding: 12,
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
-    gap: 10
+    gap: 12
   },
   innerCardTitle: {
     fontSize: 22,
@@ -1618,9 +1622,9 @@ const styles: Record<string, CSSProperties> = {
   },
   menuInput: {
     width: "100%",
-    minHeight: 62,
-    border: "5px solid #000000",
-    borderRadius: 18,
+    minHeight: 66,
+    border: "6px solid #000000",
+    borderRadius: 28,
     padding: "0 12px",
     boxSizing: "border-box",
     fontSize: 19,
@@ -1632,8 +1636,8 @@ const styles: Record<string, CSSProperties> = {
   menuTextArea: {
     width: "100%",
     minHeight: 130,
-    border: "5px solid #000000",
-    borderRadius: 18,
+    border: "6px solid #000000",
+    borderRadius: 28,
     padding: 12,
     boxSizing: "border-box",
     fontSize: 19,
@@ -1645,9 +1649,9 @@ const styles: Record<string, CSSProperties> = {
     outline: "none"
   },
   menuToggleButton: {
-    minHeight: 66,
-    border: "5px solid #000000",
-    borderRadius: 20,
+    minHeight: 72,
+    border: "6px solid #000000",
+    borderRadius: 34,
     background: "#ffffff",
     fontSize: 20,
     fontWeight: 900,
@@ -1659,9 +1663,9 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: "inset 0 0 0 3px rgba(0,0,0,0.12)"
   },
   menuPrimaryButton: {
-    minHeight: 70,
-    border: "5px solid #000000",
-    borderRadius: 20,
+    minHeight: 72,
+    border: "6px solid #000000",
+    borderRadius: 34,
     background: "#ead790",
     fontSize: 22,
     fontWeight: 900,
@@ -1669,17 +1673,17 @@ const styles: Record<string, CSSProperties> = {
   },
   dangerButton: {
     minHeight: 78,
-    border: "5px solid #000000",
-    borderRadius: 20,
+    border: "6px solid #000000",
+    borderRadius: 34,
     background: "#ffb4a8",
     fontSize: 22,
     fontWeight: 900,
     cursor: "pointer"
   },
   disabledButton: {
-    minHeight: 70,
-    border: "5px solid #000000",
-    borderRadius: 20,
+    minHeight: 72,
+    border: "6px solid #000000",
+    borderRadius: 34,
     background: "#dddddd",
     color: "#555555",
     fontSize: 22,
@@ -1687,8 +1691,8 @@ const styles: Record<string, CSSProperties> = {
     cursor: "not-allowed"
   },
   historyResultBox: {
-    border: "5px solid #000000",
-    borderRadius: 22,
+    border: "6px solid #000000",
+    borderRadius: 34,
     background: "#ead790",
     padding: 18,
     boxSizing: "border-box",
@@ -1706,21 +1710,23 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: 18,
+    padding: 10,
     boxSizing: "border-box",
     zIndex: 100
   },
   modalBox: {
     width: "100%",
     maxWidth: 520,
+    maxHeight: "min(1480px, calc(100vh - 20px))",
+    overflow: "auto",
     border: "6px solid #000000",
-    borderRadius: 28,
+    borderRadius: 34,
     background: "#c8d7e7",
-    padding: 22,
+    padding: 12,
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
-    gap: 16
+    gap: 14
   },
   modalTitle: {
     fontSize: 34,
@@ -1731,8 +1737,8 @@ const styles: Record<string, CSSProperties> = {
     width: "100%",
     minHeight: 210,
     resize: "vertical",
-    border: "5px solid #000000",
-    borderRadius: 22,
+    border: "6px solid #000000",
+    borderRadius: 34,
     padding: 16,
     boxSizing: "border-box",
     fontSize: 22,
@@ -1745,8 +1751,8 @@ const styles: Record<string, CSSProperties> = {
   urlInput: {
     width: "100%",
     minHeight: 72,
-    border: "5px solid #000000",
-    borderRadius: 22,
+    border: "6px solid #000000",
+    borderRadius: 34,
     padding: "0 16px",
     boxSizing: "border-box",
     fontSize: 22,
@@ -1758,8 +1764,8 @@ const styles: Record<string, CSSProperties> = {
   selectInput: {
     width: "100%",
     minHeight: 72,
-    border: "5px solid #000000",
-    borderRadius: 22,
+    border: "6px solid #000000",
+    borderRadius: 34,
     padding: "0 16px",
     boxSizing: "border-box",
     fontSize: 22,
@@ -1790,8 +1796,8 @@ const styles: Record<string, CSSProperties> = {
   },
   fileInput: {
     width: "100%",
-    border: "5px solid #000000",
-    borderRadius: 22,
+    border: "6px solid #000000",
+    borderRadius: 34,
     padding: 16,
     boxSizing: "border-box",
     fontSize: 18,
@@ -1802,8 +1808,8 @@ const styles: Record<string, CSSProperties> = {
   },
   selectedFileBox: {
     width: "100%",
-    border: "5px solid #000000",
-    borderRadius: 22,
+    border: "6px solid #000000",
+    borderRadius: 34,
     padding: 16,
     boxSizing: "border-box",
     fontSize: 20,
@@ -1820,18 +1826,18 @@ const styles: Record<string, CSSProperties> = {
     gap: 14
   },
   modalCancelButton: {
-    minHeight: 70,
-    border: "5px solid #000000",
-    borderRadius: 20,
+    minHeight: 72,
+    border: "6px solid #000000",
+    borderRadius: 34,
     background: "#ffffff",
     fontSize: 24,
     fontWeight: 900,
     cursor: "pointer"
   },
   modalConfirmButton: {
-    minHeight: 70,
-    border: "5px solid #000000",
-    borderRadius: 20,
+    minHeight: 72,
+    border: "6px solid #000000",
+    borderRadius: 34,
     background: "#ead790",
     fontSize: 24,
     fontWeight: 900,
