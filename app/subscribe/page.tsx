@@ -3,8 +3,13 @@
 import { CSSProperties, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabase";
-import { APP_CONFIG, type PlanType } from "../../lib/app-config";
-import { formatUsd } from "../../lib/pricing";
+import {
+  APP_CONFIG,
+  isPaidPlan,
+  type CheckoutBillingMode,
+  type PaidPlanType
+} from "../../lib/app-config";
+import { formatEur } from "../../lib/pricing";
 import {
   getAvailableLanguages,
   getDictionary,
@@ -76,26 +81,44 @@ type ProfileResponse = {
   };
 };
 
-type PlanMode = "day" | "month" | "year";
+type PlanMode = PaidPlanType;
 
 function parsePositiveInt(value: string, fallback = 1) {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
+
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
   const intValue = Math.floor(parsed);
+
   return intValue > 0 ? intValue : fallback;
 }
 
 function formatDate(value: string | null) {
   if (!value) return "—";
+
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
+
+  if (Number.isNaN(d.getTime())) {
+    return value;
+  }
+
   return d.toLocaleString("cs-CZ");
 }
 
-function getPlanLabel(planType: "day" | "month" | "year") {
+function getPlanLabel(planType: PaidPlanType) {
   if (planType === "day") return "Denní plán";
   if (planType === "month") return "Měsíční plán";
   return "Roční plán";
+}
+
+function getBillingModeLabel(mode: CheckoutBillingMode) {
+  if (mode === "subscription") {
+    return "Automatické obnovování";
+  }
+
+  return "Jednorázová platba";
 }
 
 function SubscribeInner() {
@@ -114,6 +137,7 @@ function SubscribeInner() {
   const [showFuturePlans, setShowFuturePlans] = useState(false);
 
   const [planMode, setPlanMode] = useState<PlanMode>("month");
+  const [billingMode, setBillingMode] = useState<CheckoutBillingMode>("one_time");
   const [dayCount, setDayCount] = useState("1");
   const [creditPointsToBuy, setCreditPointsToBuy] = useState("10");
 
@@ -138,6 +162,12 @@ function SubscribeInner() {
 
     loadLanguageData().catch(console.error);
   }, [language]);
+
+  useEffect(() => {
+    if (planMode === "day") {
+      setBillingMode("one_time");
+    }
+  }, [planMode]);
 
   useEffect(() => {
     const load = async () => {
@@ -169,6 +199,7 @@ function SubscribeInner() {
         const res = await fetch(`/api/profile?userId=${encodeURIComponent(currentUserId)}`, {
           cache: "no-store"
         });
+
         const json = await res.json();
 
         if (!res.ok) {
@@ -195,16 +226,29 @@ function SubscribeInner() {
     return APP_CONFIG.plans[planMode];
   }, [planMode]);
 
-  const planPriceUsd = useMemo(() => {
+  const planPriceEur = useMemo(() => {
     if (planMode === "day") {
-      return selectedPlan.subscriptionPriceUsd * safeDayCount;
+      return selectedPlan.priceEur * safeDayCount;
     }
 
-    return selectedPlan.subscriptionPriceUsd;
+    return selectedPlan.priceEur;
+  }, [planMode, selectedPlan, safeDayCount]);
+
+  const includedViews = useMemo(() => {
+    if (planMode === "day") {
+      return selectedPlan.includedFreeViews * safeDayCount;
+    }
+
+    return selectedPlan.includedFreeViews;
   }, [planMode, selectedPlan, safeDayCount]);
 
   const currentPlan = profileData?.subscriptionPlans.currentPlan || null;
   const futurePlans = profileData?.subscriptionPlans.futurePlans || [];
+
+  const hasActivePlan =
+    !!currentPlan ||
+    (profileData?.profile.subscription_status === "active" &&
+      isPaidPlan(profileData.profile.plan_type));
 
   async function handleBuyPlan() {
     if (!userId) return;
@@ -222,6 +266,7 @@ function SubscribeInner() {
           mode: "plan",
           userId,
           planType: planMode,
+          billingMode,
           dayCount: safeDayCount
         })
       });
@@ -249,6 +294,11 @@ function SubscribeInner() {
 
   async function handleBuyCredit() {
     if (!userId) return;
+
+    if (!hasActivePlan) {
+      setMessage("Pro použití kreditu je potřeba mít aktivní předplatné.");
+      return;
+    }
 
     try {
       setBusy("credit");
@@ -300,7 +350,7 @@ function SubscribeInner() {
       <div style={styles.shell}>
         <div style={styles.topBar}>
           <div>
-            <h1 style={styles.title}>{t(dictionary, "subscription.title")}</h1>
+            <h1 style={styles.title}>Předplatné a kredit</h1>
             <div style={styles.subTitle}>
               {currentPlan
                 ? `${getPlanLabel(currentPlan.planType)} · ${formatDate(currentPlan.endsAt)}`
@@ -326,7 +376,7 @@ function SubscribeInner() {
               style={styles.secondaryButton}
               onClick={() => router.push("/")}
             >
-              {t(dictionary, "subscription.backToDashboard")}
+              Zpět na dashboard
             </button>
           </div>
         </div>
@@ -377,36 +427,32 @@ function SubscribeInner() {
 
         <div style={styles.summaryGrid}>
           <div style={styles.summaryBox}>
-            <div style={styles.summaryLabel}>
-              {t(dictionary, "dashboard.freeViewsRemaining")}
-            </div>
+            <div style={styles.summaryLabel}>Views zdarma</div>
             <div style={styles.summaryValue}>
               {profileData.profile.free_views_remaining.toLocaleString()}
             </div>
           </div>
 
           <div style={styles.summaryBox}>
-            <div style={styles.summaryLabel}>
-              {t(dictionary, "dashboard.creditPointsRemaining")}
-            </div>
+            <div style={styles.summaryLabel}>Kredit</div>
             <div style={styles.summaryValue}>
               {profileData.profile.credit_points_balance.toFixed(2)}
             </div>
           </div>
 
           <div style={styles.summaryBox}>
-            <div style={styles.summaryLabel}>
-              {t(dictionary, "dashboard.approxViewsFromCredit")}
-            </div>
+            <div style={styles.summaryLabel}>Odhad views z kreditu</div>
             <div style={styles.summaryValueSmall}>
-              T: {profileData.approxViewsFromCredit.text.toLocaleString()} · U:{" "}
-              {profileData.approxViewsFromCredit.url.toLocaleString()} · M:{" "}
+              Text: {profileData.approxViewsFromCredit.text.toLocaleString()} · URL:{" "}
+              {profileData.approxViewsFromCredit.url.toLocaleString()} · Media:{" "}
               {profileData.approxViewsFromCredit.media.toLocaleString()}
             </div>
           </div>
         </div>
 
         <section style={styles.card}>
+          <h2 style={styles.sectionTitle}>Koupit předplatné</h2>
+
           <div style={styles.modeRow}>
             <button
               type="button"
@@ -416,7 +462,7 @@ function SubscribeInner() {
                 ...(planMode === "day" ? styles.modeButtonActive : {})
               }}
             >
-              {t(dictionary, "subscription.dayPlan")}
+              Denní
             </button>
 
             <button
@@ -427,7 +473,7 @@ function SubscribeInner() {
                 ...(planMode === "month" ? styles.modeButtonActive : {})
               }}
             >
-              {t(dictionary, "subscription.monthPlan")}
+              Měsíční
             </button>
 
             <button
@@ -438,50 +484,45 @@ function SubscribeInner() {
                 ...(planMode === "year" ? styles.modeButtonActive : {})
               }}
             >
-              {t(dictionary, "subscription.yearPlan")}
+              Roční
             </button>
           </div>
 
-          <div style={styles.pricingGrid}>
-            <div style={styles.infoBox}>
-              <div style={styles.infoLabel}>{t(dictionary, "subscription.planPrice")}</div>
-              <div style={styles.infoValue}>{formatUsd(planPriceUsd)}</div>
-            </div>
+          <div style={styles.billingRow}>
+            <button
+              type="button"
+              onClick={() => setBillingMode("one_time")}
+              style={{
+                ...styles.modeButton,
+                ...(billingMode === "one_time" ? styles.modeButtonActive : {})
+              }}
+            >
+              Jednorázově
+            </button>
 
-            <div style={styles.infoBox}>
-              <div style={styles.infoLabel}>{t(dictionary, "subscription.includedViews")}</div>
-              <div style={styles.infoValue}>
-                {planMode === "day"
-                  ? (selectedPlan.includedFreeViews * safeDayCount).toLocaleString()
-                  : selectedPlan.includedFreeViews.toLocaleString()}
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (planMode === "day") {
+                  setMessage("Denní plán je dostupný jen jako jednorázová platba.");
+                  return;
+                }
 
-            <div style={styles.infoBox}>
-              <div style={styles.infoLabel}>{t(dictionary, "subscription.textRate")}</div>
-              <div style={styles.infoValue}>
-                {formatUsd(selectedPlan.textPricePer1000ViewsUsd)}
-              </div>
-            </div>
-
-            <div style={styles.infoBox}>
-              <div style={styles.infoLabel}>{t(dictionary, "subscription.urlRate")}</div>
-              <div style={styles.infoValue}>
-                {formatUsd(selectedPlan.urlPricePer1000ViewsUsd)}
-              </div>
-            </div>
-
-            <div style={styles.infoBox}>
-              <div style={styles.infoLabel}>{t(dictionary, "subscription.mediaRate")}</div>
-              <div style={styles.infoValue}>
-                {formatUsd(selectedPlan.mediaPricePer1000ViewsUsd)}
-              </div>
-            </div>
+                setBillingMode("subscription");
+              }}
+              style={{
+                ...styles.modeButton,
+                ...(billingMode === "subscription" ? styles.modeButtonActive : {}),
+                ...(planMode === "day" ? styles.disabledModeButton : {})
+              }}
+            >
+              Automaticky obnovovat
+            </button>
           </div>
 
           {planMode === "day" ? (
             <>
-              <label style={styles.label}>{t(dictionary, "subscription.numberOfDays")}</label>
+              <label style={styles.label}>Počet dní</label>
               <input
                 type="number"
                 min="1"
@@ -492,20 +533,64 @@ function SubscribeInner() {
             </>
           ) : null}
 
+          <div style={styles.pricingGrid}>
+            <div style={styles.infoBox}>
+              <div style={styles.infoLabel}>Typ platby</div>
+              <div style={styles.infoValue}>{getBillingModeLabel(billingMode)}</div>
+            </div>
+
+            <div style={styles.infoBox}>
+              <div style={styles.infoLabel}>Cena</div>
+              <div style={styles.infoValue}>{formatEur(planPriceEur)}</div>
+            </div>
+
+            <div style={styles.infoBox}>
+              <div style={styles.infoLabel}>Views zdarma</div>
+              <div style={styles.infoValue}>{includedViews.toLocaleString()}</div>
+            </div>
+
+            <div style={styles.infoBox}>
+              <div style={styles.infoLabel}>Text / 1000 views</div>
+              <div style={styles.infoValue}>
+                {formatEur(selectedPlan.textPricePer1000ViewsEur)}
+              </div>
+            </div>
+
+            <div style={styles.infoBox}>
+              <div style={styles.infoLabel}>URL / 1000 views</div>
+              <div style={styles.infoValue}>
+                {formatEur(selectedPlan.urlPricePer1000ViewsEur)}
+              </div>
+            </div>
+
+            <div style={styles.infoBox}>
+              <div style={styles.infoLabel}>Media / 1000 views</div>
+              <div style={styles.infoValue}>
+                {formatEur(selectedPlan.mediaPricePer1000ViewsEur)}
+              </div>
+            </div>
+          </div>
+
           <button
             type="button"
             style={styles.primaryButton}
             onClick={handleBuyPlan}
             disabled={busy !== ""}
           >
-            {busy === "plan" ? t(dictionary, "common.loading") : t(dictionary, "subscription.buyPlan")}
+            {busy === "plan" ? "Načítání..." : "Pokračovat k platbě"}
           </button>
         </section>
 
         <section style={styles.card}>
-          <h2 style={styles.sectionTitle}>{t(dictionary, "subscription.creditPurchase")}</h2>
+          <h2 style={styles.sectionTitle}>Dokoupit kredit</h2>
 
-          <label style={styles.label}>{t(dictionary, "subscription.creditPointsAmount")}</label>
+          {!hasActivePlan ? (
+            <div style={styles.warningBox}>
+              Kredit je možné používat až po aktivaci předplatného.
+            </div>
+          ) : null}
+
+          <label style={styles.label}>Počet kreditních bodů</label>
           <input
             type="number"
             min="1"
@@ -514,11 +599,11 @@ function SubscribeInner() {
             style={styles.input}
           />
 
-          <div style={styles.noticeBox}>1 kreditní bod = 1 USD</div>
+          <div style={styles.noticeBox}>1 kreditní bod = 1 EUR</div>
 
           <div style={styles.infoBox}>
             <div style={styles.infoLabel}>Cena</div>
-            <div style={styles.infoValue}>{formatUsd(safeCreditPointsToBuy)}</div>
+            <div style={styles.infoValue}>{formatEur(safeCreditPointsToBuy)}</div>
           </div>
 
           <button
@@ -527,9 +612,7 @@ function SubscribeInner() {
             onClick={handleBuyCredit}
             disabled={busy !== ""}
           >
-            {busy === "credit"
-              ? t(dictionary, "common.loading")
-              : t(dictionary, "subscription.buyCredit")}
+            {busy === "credit" ? "Načítání..." : "Koupit kredit"}
           </button>
         </section>
 
@@ -650,6 +733,11 @@ const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
     gap: 12
   },
+  billingRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 12
+  },
   modeButton: {
     width: "100%",
     padding: "14px 16px",
@@ -662,6 +750,10 @@ const styles: Record<string, CSSProperties> = {
   modeButtonActive: {
     background: "#eff6ff",
     border: "1px solid #2563eb"
+  },
+  disabledModeButton: {
+    opacity: 0.55,
+    cursor: "not-allowed"
   },
   pricingGrid: {
     display: "grid",
@@ -732,6 +824,15 @@ const styles: Record<string, CSSProperties> = {
     padding: 12,
     fontSize: 14,
     color: "#334155"
+  },
+  warningBox: {
+    border: "1px solid #fed7aa",
+    background: "#fff7ed",
+    color: "#9a3412",
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    fontWeight: 700
   },
   messageBox: {
     border: "1px solid #dbeafe",
