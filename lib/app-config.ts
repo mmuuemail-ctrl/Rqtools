@@ -1,17 +1,23 @@
 export type PlanType = "free" | "day" | "month" | "year";
+export type PaidPlanType = "day" | "month" | "year";
 export type ContentType = "text" | "url" | "media";
 export type ActivationMode = "days" | "subscription_period" | "unlimited";
+export type CheckoutBillingMode = "one_time" | "subscription";
 
 export type PlanPricingConfig = {
-  subscriptionPriceUsd: number;
+  priceEur: number;
   includedFreeViews: number;
-  textPricePer1000ViewsUsd: number;
-  urlPricePer1000ViewsUsd: number;
-  mediaPricePer1000ViewsUsd: number;
+  textPricePer1000ViewsEur: number;
+  urlPricePer1000ViewsEur: number;
+  mediaPricePer1000ViewsEur: number;
+  allowOneTime: boolean;
+  allowSubscription: boolean;
 };
 
 export const APP_CONFIG = {
   appName: "RQtools",
+  currency: "eur",
+  creditPointValueEur: 1,
   maxUploadBytes: 100 * 1024 * 1024,
 
   allowedMimeTypes: [
@@ -52,37 +58,45 @@ export const APP_CONFIG = {
 
   plans: {
     free: {
-      subscriptionPriceUsd: 0,
+      priceEur: 0,
       includedFreeViews: 0,
-      textPricePer1000ViewsUsd: 1.2,
-      urlPricePer1000ViewsUsd: 999999,
-      mediaPricePer1000ViewsUsd: 999999
+      textPricePer1000ViewsEur: 1.2,
+      urlPricePer1000ViewsEur: 999999,
+      mediaPricePer1000ViewsEur: 999999,
+      allowOneTime: false,
+      allowSubscription: false
     },
     day: {
-      subscriptionPriceUsd: 2.5,
+      priceEur: 2.5,
       includedFreeViews: 2000,
-      textPricePer1000ViewsUsd: 0.7,
-      urlPricePer1000ViewsUsd: 1.4,
-      mediaPricePer1000ViewsUsd: 2.1
+      textPricePer1000ViewsEur: 0.7,
+      urlPricePer1000ViewsEur: 1.4,
+      mediaPricePer1000ViewsEur: 2.1,
+      allowOneTime: true,
+      allowSubscription: false
     },
     month: {
-      subscriptionPriceUsd: 12,
+      priceEur: 12,
       includedFreeViews: 25000,
-      textPricePer1000ViewsUsd: 0.4,
-      urlPricePer1000ViewsUsd: 0.9,
-      mediaPricePer1000ViewsUsd: 1.4
+      textPricePer1000ViewsEur: 0.4,
+      urlPricePer1000ViewsEur: 0.9,
+      mediaPricePer1000ViewsEur: 1.4,
+      allowOneTime: true,
+      allowSubscription: true
     },
     year: {
-      subscriptionPriceUsd: 99,
+      priceEur: 99,
       includedFreeViews: 400000,
-      textPricePer1000ViewsUsd: 0.25,
-      urlPricePer1000ViewsUsd: 0.55,
-      mediaPricePer1000ViewsUsd: 0.9
+      textPricePer1000ViewsEur: 0.25,
+      urlPricePer1000ViewsEur: 0.55,
+      mediaPricePer1000ViewsEur: 0.9,
+      allowOneTime: true,
+      allowSubscription: true
     }
   } satisfies Record<PlanType, PlanPricingConfig>
 } as const;
 
-export function isPaidPlan(planType: unknown): planType is "day" | "month" | "year" {
+export function isPaidPlan(planType: unknown): planType is PaidPlanType {
   return planType === "day" || planType === "month" || planType === "year";
 }
 
@@ -92,4 +106,8 @@ export function isContentType(value: unknown): value is ContentType {
 
 export function isActivationMode(value: unknown): value is ActivationMode {
   return value === "days" || value === "subscription_period" || value === "unlimited";
+}
+
+export function isCheckoutBillingMode(value: unknown): value is CheckoutBillingMode {
+  return value === "one_time" || value === "subscription";
 }
