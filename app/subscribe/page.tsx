@@ -3,12 +3,7 @@
 import { CSSProperties, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabase";
-import {
-  APP_CONFIG,
-  isPaidPlan,
-  type CheckoutBillingMode,
-  type PaidPlanType
-} from "../../lib/app-config";
+import { APP_CONFIG } from "../../lib/app-config";
 import { formatEur } from "../../lib/pricing";
 import {
   getAvailableLanguages,
@@ -81,44 +76,26 @@ type ProfileResponse = {
   };
 };
 
-type PlanMode = PaidPlanType;
+type PlanMode = "day" | "month" | "year";
 
 function parsePositiveInt(value: string, fallback = 1) {
   const parsed = Number(value);
-
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-
+  if (!Number.isFinite(parsed)) return fallback;
   const intValue = Math.floor(parsed);
-
   return intValue > 0 ? intValue : fallback;
 }
 
 function formatDate(value: string | null) {
   if (!value) return "—";
-
   const d = new Date(value);
-
-  if (Number.isNaN(d.getTime())) {
-    return value;
-  }
-
+  if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleString("cs-CZ");
 }
 
-function getPlanLabel(planType: PaidPlanType) {
+function getPlanLabel(planType: "day" | "month" | "year") {
   if (planType === "day") return "Denní plán";
   if (planType === "month") return "Měsíční plán";
   return "Roční plán";
-}
-
-function getBillingModeLabel(mode: CheckoutBillingMode) {
-  if (mode === "subscription") {
-    return "Automatické obnovování";
-  }
-
-  return "Jednorázová platba";
 }
 
 function SubscribeInner() {
@@ -137,7 +114,6 @@ function SubscribeInner() {
   const [showFuturePlans, setShowFuturePlans] = useState(false);
 
   const [planMode, setPlanMode] = useState<PlanMode>("month");
-  const [billingMode, setBillingMode] = useState<CheckoutBillingMode>("one_time");
   const [dayCount, setDayCount] = useState("1");
   const [creditPointsToBuy, setCreditPointsToBuy] = useState("10");
 
@@ -162,12 +138,6 @@ function SubscribeInner() {
 
     loadLanguageData().catch(console.error);
   }, [language]);
-
-  useEffect(() => {
-    if (planMode === "day") {
-      setBillingMode("one_time");
-    }
-  }, [planMode]);
 
   useEffect(() => {
     const load = async () => {
@@ -228,27 +198,14 @@ function SubscribeInner() {
 
   const planPriceEur = useMemo(() => {
     if (planMode === "day") {
-      return selectedPlan.priceEur * safeDayCount;
+      return selectedPlan.subscriptionPriceEur * safeDayCount;
     }
 
-    return selectedPlan.priceEur;
-  }, [planMode, selectedPlan, safeDayCount]);
-
-  const includedViews = useMemo(() => {
-    if (planMode === "day") {
-      return selectedPlan.includedFreeViews * safeDayCount;
-    }
-
-    return selectedPlan.includedFreeViews;
+    return selectedPlan.subscriptionPriceEur;
   }, [planMode, selectedPlan, safeDayCount]);
 
   const currentPlan = profileData?.subscriptionPlans.currentPlan || null;
   const futurePlans = profileData?.subscriptionPlans.futurePlans || [];
-
-  const hasActivePlan =
-    !!currentPlan ||
-    (profileData?.profile.subscription_status === "active" &&
-      isPaidPlan(profileData.profile.plan_type));
 
   async function handleBuyPlan() {
     if (!userId) return;
@@ -264,9 +221,9 @@ function SubscribeInner() {
         },
         body: JSON.stringify({
           mode: "plan",
+          recurring: false,
           userId,
           planType: planMode,
-          billingMode,
           dayCount: safeDayCount
         })
       });
@@ -294,11 +251,6 @@ function SubscribeInner() {
 
   async function handleBuyCredit() {
     if (!userId) return;
-
-    if (!hasActivePlan) {
-      setMessage("Pro použití kreditu je potřeba mít aktivní předplatné.");
-      return;
-    }
 
     try {
       setBusy("credit");
@@ -350,7 +302,8 @@ function SubscribeInner() {
       <div style={styles.shell}>
         <div style={styles.topBar}>
           <div>
-            <h1 style={styles.title}>Předplatné a kredit</h1>
+            <h1 style={styles.title}>{t(dictionary, "subscription.title")}</h1>
+
             <div style={styles.subTitle}>
               {currentPlan
                 ? `${getPlanLabel(currentPlan.planType)} · ${formatDate(currentPlan.endsAt)}`
@@ -376,7 +329,7 @@ function SubscribeInner() {
               style={styles.secondaryButton}
               onClick={() => router.push("/")}
             >
-              Zpět na dashboard
+              {t(dictionary, "subscription.backToDashboard")}
             </button>
           </div>
         </div>
@@ -386,6 +339,7 @@ function SubscribeInner() {
 
           <div style={styles.infoBox}>
             <div style={styles.infoLabel}>Aktivní plán</div>
+
             <div style={styles.infoValue}>
               {currentPlan
                 ? `${getPlanLabel(currentPlan.planType)} do ${formatDate(currentPlan.endsAt)}`
@@ -410,10 +364,14 @@ function SubscribeInner() {
                       key={`${plan.planType}-${plan.startsAt}-${index}`}
                       style={styles.planItem}
                     >
-                      <div style={styles.planItemTitle}>{getPlanLabel(plan.planType)}</div>
+                      <div style={styles.planItemTitle}>
+                        {getPlanLabel(plan.planType)}
+                      </div>
+
                       <div style={styles.planItemText}>
                         Začátek: {formatDate(plan.startsAt)}
                       </div>
+
                       <div style={styles.planItemText}>
                         Konec: {formatDate(plan.endsAt)}
                       </div>
@@ -427,32 +385,39 @@ function SubscribeInner() {
 
         <div style={styles.summaryGrid}>
           <div style={styles.summaryBox}>
-            <div style={styles.summaryLabel}>Views zdarma</div>
+            <div style={styles.summaryLabel}>
+              {t(dictionary, "dashboard.freeViewsRemaining")}
+            </div>
+
             <div style={styles.summaryValue}>
               {profileData.profile.free_views_remaining.toLocaleString()}
             </div>
           </div>
 
           <div style={styles.summaryBox}>
-            <div style={styles.summaryLabel}>Kredit</div>
+            <div style={styles.summaryLabel}>
+              {t(dictionary, "dashboard.creditPointsRemaining")}
+            </div>
+
             <div style={styles.summaryValue}>
               {profileData.profile.credit_points_balance.toFixed(2)}
             </div>
           </div>
 
           <div style={styles.summaryBox}>
-            <div style={styles.summaryLabel}>Odhad views z kreditu</div>
+            <div style={styles.summaryLabel}>
+              {t(dictionary, "dashboard.approxViewsFromCredit")}
+            </div>
+
             <div style={styles.summaryValueSmall}>
-              Text: {profileData.approxViewsFromCredit.text.toLocaleString()} · URL:{" "}
-              {profileData.approxViewsFromCredit.url.toLocaleString()} · Media:{" "}
+              T: {profileData.approxViewsFromCredit.text.toLocaleString()} · U:{" "}
+              {profileData.approxViewsFromCredit.url.toLocaleString()} · M:{" "}
               {profileData.approxViewsFromCredit.media.toLocaleString()}
             </div>
           </div>
         </div>
 
         <section style={styles.card}>
-          <h2 style={styles.sectionTitle}>Koupit předplatné</h2>
-
           <div style={styles.modeRow}>
             <button
               type="button"
@@ -462,7 +427,7 @@ function SubscribeInner() {
                 ...(planMode === "day" ? styles.modeButtonActive : {})
               }}
             >
-              Denní
+              {t(dictionary, "subscription.dayPlan")}
             </button>
 
             <button
@@ -473,7 +438,7 @@ function SubscribeInner() {
                 ...(planMode === "month" ? styles.modeButtonActive : {})
               }}
             >
-              Měsíční
+              {t(dictionary, "subscription.monthPlan")}
             </button>
 
             <button
@@ -484,45 +449,72 @@ function SubscribeInner() {
                 ...(planMode === "year" ? styles.modeButtonActive : {})
               }}
             >
-              Roční
+              {t(dictionary, "subscription.yearPlan")}
             </button>
           </div>
 
-          <div style={styles.billingRow}>
-            <button
-              type="button"
-              onClick={() => setBillingMode("one_time")}
-              style={{
-                ...styles.modeButton,
-                ...(billingMode === "one_time" ? styles.modeButtonActive : {})
-              }}
-            >
-              Jednorázově
-            </button>
+          <div style={styles.pricingGrid}>
+            <div style={styles.infoBox}>
+              <div style={styles.infoLabel}>
+                {t(dictionary, "subscription.planPrice")}
+              </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (planMode === "day") {
-                  setMessage("Denní plán je dostupný jen jako jednorázová platba.");
-                  return;
-                }
+              <div style={styles.infoValue}>
+                {formatEur(planPriceEur)}
+              </div>
+            </div>
 
-                setBillingMode("subscription");
-              }}
-              style={{
-                ...styles.modeButton,
-                ...(billingMode === "subscription" ? styles.modeButtonActive : {}),
-                ...(planMode === "day" ? styles.disabledModeButton : {})
-              }}
-            >
-              Automaticky obnovovat
-            </button>
+            <div style={styles.infoBox}>
+              <div style={styles.infoLabel}>
+                {t(dictionary, "subscription.includedViews")}
+              </div>
+
+              <div style={styles.infoValue}>
+                {planMode === "day"
+                  ? (
+                      selectedPlan.includedFreeViews * safeDayCount
+                    ).toLocaleString()
+                  : selectedPlan.includedFreeViews.toLocaleString()}
+              </div>
+            </div>
+
+            <div style={styles.infoBox}>
+              <div style={styles.infoLabel}>
+                {t(dictionary, "subscription.textRate")}
+              </div>
+
+              <div style={styles.infoValue}>
+                {formatEur(selectedPlan.textPricePer1000ViewsEur)}
+              </div>
+            </div>
+
+            <div style={styles.infoBox}>
+              <div style={styles.infoLabel}>
+                {t(dictionary, "subscription.urlRate")}
+              </div>
+
+              <div style={styles.infoValue}>
+                {formatEur(selectedPlan.urlPricePer1000ViewsEur)}
+              </div>
+            </div>
+
+            <div style={styles.infoBox}>
+              <div style={styles.infoLabel}>
+                {t(dictionary, "subscription.mediaRate")}
+              </div>
+
+              <div style={styles.infoValue}>
+                {formatEur(selectedPlan.mediaPricePer1000ViewsEur)}
+              </div>
+            </div>
           </div>
 
           {planMode === "day" ? (
             <>
-              <label style={styles.label}>Počet dní</label>
+              <label style={styles.label}>
+                {t(dictionary, "subscription.numberOfDays")}
+              </label>
+
               <input
                 type="number"
                 min="1"
@@ -533,64 +525,27 @@ function SubscribeInner() {
             </>
           ) : null}
 
-          <div style={styles.pricingGrid}>
-            <div style={styles.infoBox}>
-              <div style={styles.infoLabel}>Typ platby</div>
-              <div style={styles.infoValue}>{getBillingModeLabel(billingMode)}</div>
-            </div>
-
-            <div style={styles.infoBox}>
-              <div style={styles.infoLabel}>Cena</div>
-              <div style={styles.infoValue}>{formatEur(planPriceEur)}</div>
-            </div>
-
-            <div style={styles.infoBox}>
-              <div style={styles.infoLabel}>Views zdarma</div>
-              <div style={styles.infoValue}>{includedViews.toLocaleString()}</div>
-            </div>
-
-            <div style={styles.infoBox}>
-              <div style={styles.infoLabel}>Text / 1000 views</div>
-              <div style={styles.infoValue}>
-                {formatEur(selectedPlan.textPricePer1000ViewsEur)}
-              </div>
-            </div>
-
-            <div style={styles.infoBox}>
-              <div style={styles.infoLabel}>URL / 1000 views</div>
-              <div style={styles.infoValue}>
-                {formatEur(selectedPlan.urlPricePer1000ViewsEur)}
-              </div>
-            </div>
-
-            <div style={styles.infoBox}>
-              <div style={styles.infoLabel}>Media / 1000 views</div>
-              <div style={styles.infoValue}>
-                {formatEur(selectedPlan.mediaPricePer1000ViewsEur)}
-              </div>
-            </div>
-          </div>
-
           <button
             type="button"
             style={styles.primaryButton}
             onClick={handleBuyPlan}
             disabled={busy !== ""}
           >
-            {busy === "plan" ? "Načítání..." : "Pokračovat k platbě"}
+            {busy === "plan"
+              ? t(dictionary, "common.loading")
+              : t(dictionary, "subscription.buyPlan")}
           </button>
         </section>
 
         <section style={styles.card}>
-          <h2 style={styles.sectionTitle}>Dokoupit kredit</h2>
+          <h2 style={styles.sectionTitle}>
+            {t(dictionary, "subscription.creditPurchase")}
+          </h2>
 
-          {!hasActivePlan ? (
-            <div style={styles.warningBox}>
-              Kredit je možné používat až po aktivaci předplatného.
-            </div>
-          ) : null}
+          <label style={styles.label}>
+            {t(dictionary, "subscription.creditPointsAmount")}
+          </label>
 
-          <label style={styles.label}>Počet kreditních bodů</label>
           <input
             type="number"
             min="1"
@@ -599,11 +554,16 @@ function SubscribeInner() {
             style={styles.input}
           />
 
-          <div style={styles.noticeBox}>1 kreditní bod = 1 EUR</div>
+          <div style={styles.noticeBox}>
+            1 kreditní bod = 1 EUR
+          </div>
 
           <div style={styles.infoBox}>
             <div style={styles.infoLabel}>Cena</div>
-            <div style={styles.infoValue}>{formatEur(safeCreditPointsToBuy)}</div>
+
+            <div style={styles.infoValue}>
+              {formatEur(safeCreditPointsToBuy)}
+            </div>
           </div>
 
           <button
@@ -612,7 +572,9 @@ function SubscribeInner() {
             onClick={handleBuyCredit}
             disabled={busy !== ""}
           >
-            {busy === "credit" ? "Načítání..." : "Koupit kredit"}
+            {busy === "credit"
+              ? t(dictionary, "common.loading")
+              : t(dictionary, "subscription.buyCredit")}
           </button>
         </section>
 
@@ -643,6 +605,7 @@ const styles: Record<string, CSSProperties> = {
     padding: 24,
     boxSizing: "border-box"
   },
+
   shell: {
     width: "100%",
     maxWidth: 1300,
@@ -651,6 +614,7 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: "column",
     gap: 20
   },
+
   topBar: {
     display: "flex",
     justifyContent: "space-between",
@@ -658,27 +622,32 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     flexWrap: "wrap"
   },
+
   topRight: {
     display: "flex",
     gap: 12,
     alignItems: "center",
     flexWrap: "wrap"
   },
+
   title: {
     margin: 0,
     fontSize: 32,
     fontWeight: 800
   },
+
   subTitle: {
     marginTop: 6,
     fontSize: 14,
     color: "#5b6777"
   },
+
   summaryGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     gap: 14
   },
+
   summaryBox: {
     background: "#ffffff",
     border: "1px solid #dde4ec",
@@ -687,22 +656,26 @@ const styles: Record<string, CSSProperties> = {
     boxSizing: "border-box",
     boxShadow: "0 10px 30px rgba(15, 23, 42, 0.05)"
   },
+
   summaryLabel: {
     fontSize: 13,
     color: "#617083",
     marginBottom: 8
   },
+
   summaryValue: {
     fontSize: 22,
     fontWeight: 800,
     wordBreak: "break-word"
   },
+
   summaryValueSmall: {
     fontSize: 16,
     fontWeight: 700,
     wordBreak: "break-word",
     lineHeight: 1.5
   },
+
   card: {
     background: "#ffffff",
     border: "1px solid #dde4ec",
@@ -714,6 +687,7 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: "column",
     gap: 16
   },
+
   centerCard: {
     maxWidth: 600,
     margin: "120px auto",
@@ -723,21 +697,19 @@ const styles: Record<string, CSSProperties> = {
     padding: 24,
     textAlign: "center"
   },
+
   sectionTitle: {
     margin: 0,
     fontSize: 22,
     fontWeight: 800
   },
+
   modeRow: {
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
     gap: 12
   },
-  billingRow: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 12
-  },
+
   modeButton: {
     width: "100%",
     padding: "14px 16px",
@@ -747,19 +719,18 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
     fontWeight: 700
   },
+
   modeButtonActive: {
     background: "#eff6ff",
     border: "1px solid #2563eb"
   },
-  disabledModeButton: {
-    opacity: 0.55,
-    cursor: "not-allowed"
-  },
+
   pricingGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
     gap: 12
   },
+
   infoBox: {
     border: "1px solid #e1e7ee",
     borderRadius: 14,
@@ -769,19 +740,23 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: "column",
     gap: 6
   },
+
   infoLabel: {
     fontSize: 13,
     color: "#617083"
   },
+
   infoValue: {
     fontSize: 16,
     fontWeight: 700,
     wordBreak: "break-word"
   },
+
   label: {
     fontSize: 14,
     fontWeight: 600
   },
+
   input: {
     width: "100%",
     padding: 12,
@@ -791,6 +766,7 @@ const styles: Record<string, CSSProperties> = {
     background: "#ffffff",
     boxSizing: "border-box"
   },
+
   select: {
     padding: 12,
     borderRadius: 12,
@@ -798,6 +774,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 15,
     background: "#ffffff"
   },
+
   primaryButton: {
     width: "100%",
     padding: "14px 16px",
@@ -808,6 +785,7 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
     fontWeight: 700
   },
+
   secondaryButton: {
     padding: "14px 16px",
     borderRadius: 12,
@@ -817,6 +795,7 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
     fontWeight: 700
   },
+
   noticeBox: {
     border: "1px solid #dde5ee",
     background: "#f8fafc",
@@ -825,15 +804,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 14,
     color: "#334155"
   },
-  warningBox: {
-    border: "1px solid #fed7aa",
-    background: "#fff7ed",
-    color: "#9a3412",
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    fontWeight: 700
-  },
+
   messageBox: {
     border: "1px solid #dbeafe",
     background: "#eff6ff",
@@ -842,22 +813,26 @@ const styles: Record<string, CSSProperties> = {
     padding: 12,
     fontSize: 14
   },
+
   planList: {
     display: "flex",
     flexDirection: "column",
     gap: 10
   },
+
   planItem: {
     border: "1px solid #dbeafe",
     background: "#f8fbff",
     borderRadius: 14,
     padding: 12
   },
+
   planItemTitle: {
     fontSize: 16,
     fontWeight: 800,
     color: "#1e3a8a"
   },
+
   planItemText: {
     marginTop: 4,
     fontSize: 13,
