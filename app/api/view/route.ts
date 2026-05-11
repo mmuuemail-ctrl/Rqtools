@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { evaluateAntiAbuse } from "../../../lib/anti-abuse";
-import { getPricePer1000ViewsUsd } from "../../../lib/pricing";
+import { getPricePer1000ViewsEur } from "../../../lib/pricing";
 import type { ContentType, PlanType } from "../../../lib/app-config";
 
 export const runtime = "nodejs";
@@ -410,7 +410,7 @@ export async function GET(request: NextRequest) {
 
         await maybeCreateLowViewsAlert(typedProfile);
       } else {
-        const ratePer1000 = getPricePer1000ViewsUsd(
+        const ratePer1000 = getPricePer1000ViewsEur(
           typedProfile.plan_type,
           qr.content_type
         );
