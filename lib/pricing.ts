@@ -1,8 +1,4 @@
-import {
-  APP_CONFIG,
-  type ContentType,
-  type PlanType
-} from "./app-config";
+import { APP_CONFIG, type ContentType, type PlanType } from "./app-config";
 
 export function getPlanPricing(planType: PlanType) {
   return APP_CONFIG.plans[planType];
