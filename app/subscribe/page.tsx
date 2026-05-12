@@ -198,10 +198,10 @@ function SubscribeInner() {
 
   const planPriceEur = useMemo(() => {
     if (planMode === "day") {
-      return selectedPlan.subscriptionPriceEur * safeDayCount;
+      return selectedPlan.priceEur * safeDayCount;
     }
 
-    return selectedPlan.subscriptionPriceEur;
+    return selectedPlan.priceEur;
   }, [planMode, selectedPlan, safeDayCount]);
 
   const currentPlan = profileData?.subscriptionPlans.currentPlan || null;
@@ -471,9 +471,7 @@ function SubscribeInner() {
 
               <div style={styles.infoValue}>
                 {planMode === "day"
-                  ? (
-                      selectedPlan.includedFreeViews * safeDayCount
-                    ).toLocaleString()
+                  ? (selectedPlan.includedFreeViews * safeDayCount).toLocaleString()
                   : selectedPlan.includedFreeViews.toLocaleString()}
               </div>
             </div>
