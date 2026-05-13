@@ -137,6 +137,13 @@ function normalizePrintSize(value: string) {
   return Math.round(parsed * 100) / 100;
 }
 
+function parsePositiveInt(value: string, fallback = 1) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  const intValue = Math.floor(parsed);
+  return intValue > 0 ? intValue : fallback;
+}
+
 function getMenuSectionTitle(section: MenuSection) {
   if (section === "subscription") return "Předplatné a kredit";
   if (section === "qrSettings") return "Nastavení QR";
@@ -178,6 +185,10 @@ export default function DashboardPage() {
   const [activeMenuSection, setActiveMenuSection] = useState<MenuSection>("main");
   const [selectedPlan, setSelectedPlan] = useState<SelectedPlan>("day");
   const [qrActivationChoice, setQrActivationChoice] = useState<QrActivationChoice>("always");
+
+  const [menuDayCount, setMenuDayCount] = useState("1");
+  const [menuCreditPoints, setMenuCreditPoints] = useState("10");
+  const [menuCheckoutBusy, setMenuCheckoutBusy] = useState(false);
 
   const BASE_WIDTH = 720;
   const BASE_HEIGHT = 1480;
@@ -351,6 +362,93 @@ export default function DashboardPage() {
 
   function showPending(label: string) {
     setMessage(`${label}: zatím jen návrh obrazovky, funkci napojíme v dalším kroku.`);
+  }
+
+  async function startMenuPlanCheckout(planType: "day" | "month" | "year") {
+    if (!userId) return;
+
+    try {
+      setMenuCheckoutBusy(true);
+      setMessage("");
+
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          mode: "plan",
+          recurring: false,
+          userId,
+          planType,
+          dayCount: planType === "day" ? parsePositiveInt(menuDayCount, 1) : 1
+        })
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        setMessage(json?.error || "Nepodařilo se vytvořit platbu.");
+        return;
+      }
+
+      if (json?.url) {
+        window.location.href = json.url;
+        return;
+      }
+
+      setMessage("Stripe nevrátil platební odkaz.");
+    } catch (error) {
+      console.error(error);
+      setMessage("Nepodařilo se vytvořit platbu.");
+    } finally {
+      setMenuCheckoutBusy(false);
+    }
+  }
+
+  async function startMenuCreditCheckout() {
+    if (!userId) return;
+
+    if (!profileData?.subscriptionPlans.currentPlan) {
+      setMessage("Pro použití kreditu je potřeba mít aktivní předplatné.");
+      return;
+    }
+
+    try {
+      setMenuCheckoutBusy(true);
+      setMessage("");
+
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          mode: "credit",
+          userId,
+          creditPoints: parsePositiveInt(menuCreditPoints, 1)
+        })
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        setMessage(json?.error || "Nepodařilo se vytvořit platbu.");
+        return;
+      }
+
+      if (json?.url) {
+        window.location.href = json.url;
+        return;
+      }
+
+      setMessage("Stripe nevrátil platební odkaz.");
+    } catch (error) {
+      console.error(error);
+      setMessage("Nepodařilo se vytvořit platbu.");
+    } finally {
+      setMenuCheckoutBusy(false);
+    }
   }
 
   function buildBaseFormData(contentType: ContentType) {
@@ -676,7 +774,15 @@ export default function DashboardPage() {
               {selectedPlan === "day" ? (
                 <>
                   <label style={styles.inputLabel}>Počet dní</label>
-                  <input type="number" min="1" step="1" defaultValue="1" style={styles.menuInput} />
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={menuDayCount}
+                    onChange={(e) => setMenuDayCount(e.target.value)}
+                    style={styles.menuInput}
+                    disabled={menuCheckoutBusy}
+                  />
                 </>
               ) : null}
 
@@ -695,9 +801,12 @@ export default function DashboardPage() {
               <button
                 type="button"
                 style={styles.menuPrimaryButton}
-                onClick={() => showPending(`Nákup: ${getPlanLabel(selectedPlan)}`)}
+                onClick={() => startMenuPlanCheckout(selectedPlan)}
+                disabled={menuCheckoutBusy}
               >
-                pokračovat k nákupu předplatného
+                {menuCheckoutBusy
+                  ? "připravuji platbu..."
+                  : "pokračovat k nákupu předplatného"}
               </button>
             </div>
           ) : null}
@@ -709,19 +818,22 @@ export default function DashboardPage() {
                 Kredit je možné používat jen s aktivním předplatným.
               </div>
               <label style={styles.inputLabel}>Kredit celé číslo</label>
-              <input type="number" min="1" step="1" defaultValue="10" style={styles.menuInput} />
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={menuCreditPoints}
+                onChange={(e) => setMenuCreditPoints(e.target.value)}
+                style={styles.menuInput}
+                disabled={menuCheckoutBusy}
+              />
               <button
                 type="button"
                 style={styles.menuPrimaryButton}
-                onClick={() => {
-                  if (!profileData?.subscriptionPlans.currentPlan) {
-                    setMessage("Pro použití kreditu je potřeba mít aktivní předplatné.");
-                    return;
-                  }
-                  showPending("Dokoupení kreditu");
-                }}
+                onClick={startMenuCreditCheckout}
+                disabled={menuCheckoutBusy}
               >
-                přidat kredit
+                {menuCheckoutBusy ? "připravuji platbu..." : "přidat kredit"}
               </button>
             </div>
           ) : null}
@@ -874,7 +986,7 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          <button type="button" style={styles.menuPrimaryButton} onClick={() => showPending("Nastavení upozornění")}> 
+          <button type="button" style={styles.menuPrimaryButton} onClick={() => showPending("Nastavení upozornění")}>
             uložit upozornění
           </button>
         </div>
