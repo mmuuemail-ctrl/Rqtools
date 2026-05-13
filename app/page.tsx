@@ -144,6 +144,38 @@ function parsePositiveInt(value: string, fallback = 1) {
   return intValue > 0 ? intValue : fallback;
 }
 
+function normalizeFileNameForUpload(originalName: string) {
+  const dotIndex = originalName.lastIndexOf(".");
+  const rawBase = dotIndex >= 0 ? originalName.slice(0, dotIndex) : originalName;
+  const rawExt = dotIndex >= 0 ? originalName.slice(dotIndex + 1).toLowerCase() : "";
+
+  const safeBase =
+    rawBase
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9._-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^[-_.]+|[-_.]+$/g, "")
+      .slice(0, 80) || "media";
+
+  const safeExt = rawExt.replace(/[^a-z0-9]/g, "").slice(0, 12);
+
+  return safeExt ? `${safeBase}.${safeExt}` : safeBase;
+}
+
+function createSafeUploadFile(file: File) {
+  const safeName = normalizeFileNameForUpload(file.name);
+
+  if (safeName === file.name) {
+    return file;
+  }
+
+  return new File([file], safeName, {
+    type: file.type,
+    lastModified: file.lastModified
+  });
+}
+
 function getMenuSectionTitle(section: MenuSection) {
   if (section === "subscription") return "Předplatné a kredit";
   if (section === "qrSettings") return "Nastavení QR";
@@ -591,16 +623,22 @@ export default function DashboardPage() {
       const formData = buildBaseFormData("media");
       if (!formData) return;
 
+      const safeFile = createSafeUploadFile(draftFile);
+
       formData.append("textContent", "");
       formData.append("customUrl", "");
-      formData.append("file", draftFile);
+      formData.append("file", safeFile, safeFile.name);
 
       const res = await fetch("/api/qr/update", {
         method: "POST",
         body: formData
       });
 
+      console.log("MEDIA RESPONSE STATUS", res.status);
+
       const dataJson = await res.json();
+
+      console.log("MEDIA RESPONSE JSON", dataJson);
 
       if (!res.ok) {
         setMessage(dataJson?.error || "Media se nepodařilo uložit.");
@@ -1286,7 +1324,7 @@ export default function DashboardPage() {
               disabled={savingMedia}
             />
             <div style={styles.selectedFileBox}>
-              {draftFile ? draftFile.name : "Zatím není vybraný žádný soubor."}
+              {draftFile ? normalizeFileNameForUpload(draftFile.name) : "Zatím není vybraný žádný soubor."}
             </div>
             <div style={styles.modalButtons}>
               <button type="button" style={styles.modalCancelButton} onClick={closeMediaModal} disabled={savingMedia}>
