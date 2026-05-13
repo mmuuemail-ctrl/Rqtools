@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { APP_CONFIG, type PaidPlanType } from "../../../../lib/app-config";
+import { APP_CONFIG } from "../../../../lib/app-config";
 
 export const runtime = "nodejs";
 
@@ -21,12 +21,11 @@ const stripe = new Stripe(stripeSecretKey, {
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-type BillingMode = "one_time" | "subscription";
+type PaidPlanType = "day" | "month" | "year";
 
 function parsePositiveInt(value: unknown, fallback = 0) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
-
   const intValue = Math.floor(parsed);
   return intValue > 0 ? intValue : fallback;
 }
@@ -114,6 +113,7 @@ async function getLastSubscriptionPeriodEnd(userId: string) {
     .maybeSingle();
 
   if (error) throw new Error(error.message);
+
   return data?.ends_at ? (data.ends_at as string) : null;
 }
 
@@ -163,6 +163,7 @@ async function recalculateProfileSubscriptionState(userId: string) {
   }
 
   const activePlanType = active.plan_type as PaidPlanType;
+
   const periodChanged =
     profile.plan_type !== activePlanType ||
     profile.subscription_expires_at !== active.ends_at ||
@@ -186,32 +187,7 @@ async function recalculateProfileSubscriptionState(userId: string) {
   if (updateRes.error) throw new Error(updateRes.error.message);
 }
 
-async function insertSubscriptionPeriod(params: {
-  userId: string;
-  planType: PaidPlanType;
-  startsAt: string;
-  endsAt: string;
-  source: string;
-  stripeEventId: string;
-}) {
-  const { error } = await supabase
-    .from("subscription_periods")
-    .insert({
-      user_id: params.userId,
-      plan_type: params.planType,
-      starts_at: params.startsAt,
-      ends_at: params.endsAt,
-      source: params.source,
-      stripe_event_id: params.stripeEventId
-    });
-
-  if (error) {
-    if (error.code === "23505") return;
-    throw new Error(error.message);
-  }
-}
-
-async function applyOneTimePlanPurchase(
+async function applyPlanPurchase(
   userId: string,
   planType: PaidPlanType,
   dayCount: number,
@@ -232,49 +208,18 @@ async function applyOneTimePlanPurchase(
     endsAt = addYears(base, 1).toISOString();
   }
 
-  await insertSubscriptionPeriod({
-    userId,
-    planType,
-    startsAt,
-    endsAt,
-    source: "stripe_checkout_one_time",
-    stripeEventId
+  const insertRes = await supabase.from("subscription_periods").insert({
+    user_id: userId,
+    plan_type: planType,
+    starts_at: startsAt,
+    ends_at: endsAt,
+    source: "stripe_checkout",
+    stripe_event_id: stripeEventId
   });
+
+  if (insertRes.error) throw new Error(insertRes.error.message);
 
   await recalculateProfileSubscriptionState(userId);
-}
-
-async function applySubscriptionInvoicePeriod(
-  params: {
-    userId: string;
-    planType: PaidPlanType;
-    startsAt: string;
-    endsAt: string;
-    stripeEventId: string;
-    stripeCustomerId: string | null;
-    stripeSubscriptionId: string | null;
-  }
-) {
-  await insertSubscriptionPeriod({
-    userId: params.userId,
-    planType: params.planType,
-    startsAt: params.startsAt,
-    endsAt: params.endsAt,
-    source: "stripe_subscription",
-    stripeEventId: params.stripeEventId
-  });
-
-  const updateRes = await supabase
-    .from("profiles")
-    .update({
-      stripe_customer_id: params.stripeCustomerId,
-      stripe_subscription_id: params.stripeSubscriptionId
-    })
-    .eq("id", params.userId);
-
-  if (updateRes.error) throw new Error(updateRes.error.message);
-
-  await recalculateProfileSubscriptionState(params.userId);
 }
 
 async function applyCreditPurchase(
@@ -299,7 +244,7 @@ async function applyCreditPurchase(
     .insert({
       user_id: userId,
       purchased_points: creditPoints,
-      price_paid_usd: pricePaidEur,
+      price_paid_eur: pricePaidEur,
       source: "stripe_checkout"
     });
 
@@ -319,20 +264,9 @@ async function downgradeBySubscriptionId(stripeSubscriptionId: string) {
   await recalculateProfileSubscriptionState(data.id);
 }
 
-function getCustomerId(session: Stripe.Checkout.Session) {
-  if (typeof session.customer === "string") return session.customer;
-  if (session.customer && "id" in session.customer) return session.customer.id;
-  return null;
-}
-
-function getSubscriptionId(session: Stripe.Checkout.Session) {
-  if (typeof session.subscription === "string") return session.subscription;
-  if (session.subscription && "id" in session.subscription) return session.subscription.id;
-  return null;
-}
-
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session, eventId: string) {
   const metadata = (session.metadata || {}) as Record<string, string>;
+
   const purchaseType = metadata.purchase_type || "";
   const userId = metadata.user_id || session.client_reference_id || "";
 
@@ -340,29 +274,40 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, eventId
     throw new Error("Missing user_id in checkout metadata.");
   }
 
+  const customerId =
+    typeof session.customer === "string"
+      ? session.customer
+      : session.customer && "id" in session.customer
+      ? session.customer.id
+      : null;
+
+  const subscriptionId =
+    typeof session.subscription === "string"
+      ? session.subscription
+      : session.subscription && "id" in session.subscription
+      ? session.subscription.id
+      : null;
+
   if (purchaseType === "plan") {
     const rawPlanType = metadata.plan_type;
-    const billingMode = (metadata.billing_mode || "one_time") as BillingMode;
     const dayCount = parsePositiveInt(metadata.day_count, 1);
 
     if (rawPlanType !== "day" && rawPlanType !== "month" && rawPlanType !== "year") {
       throw new Error("Invalid plan_type.");
     }
 
-    if (billingMode === "subscription") {
-      const updateRes = await supabase
-        .from("profiles")
-        .update({
-          stripe_customer_id: getCustomerId(session),
-          stripe_subscription_id: getSubscriptionId(session)
-        })
-        .eq("id", userId);
+    await applyPlanPurchase(userId, rawPlanType, dayCount, eventId);
 
-      if (updateRes.error) throw new Error(updateRes.error.message);
-      return;
-    }
+    const updateRes = await supabase
+      .from("profiles")
+      .update({
+        stripe_customer_id: customerId,
+        stripe_subscription_id: subscriptionId
+      })
+      .eq("id", userId);
 
-    await applyOneTimePlanPurchase(userId, rawPlanType, dayCount, eventId);
+    if (updateRes.error) throw new Error(updateRes.error.message);
+
     return;
   }
 
@@ -381,63 +326,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, eventId
   throw new Error(`Unknown purchase_type: ${purchaseType}`);
 }
 
-function getSubscriptionMetadata(subscription: Stripe.Subscription) {
-  return (subscription.metadata || {}) as Record<string, string>;
-}
-
-async function handleInvoicePaid(invoice: Stripe.Invoice, eventId: string) {
-  const subscriptionId =
-    typeof invoice.subscription === "string"
-      ? invoice.subscription
-      : invoice.subscription && "id" in invoice.subscription
-      ? invoice.subscription.id
-      : null;
-
-  if (!subscriptionId) return;
-
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-  const metadata = getSubscriptionMetadata(subscription);
-
-  const userId = metadata.user_id || "";
-  const rawPlanType = metadata.plan_type || "";
-
-  if (!userId) {
-    throw new Error("Missing user_id in subscription metadata.");
-  }
-
-  if (rawPlanType !== "month" && rawPlanType !== "year") {
-    throw new Error("Invalid subscription plan_type.");
-  }
-
-  const startsAt = new Date(subscription.current_period_start * 1000).toISOString();
-  const endsAt = new Date(subscription.current_period_end * 1000).toISOString();
-
-  const customerId =
-    typeof subscription.customer === "string"
-      ? subscription.customer
-      : subscription.customer && "id" in subscription.customer
-      ? subscription.customer.id
-      : null;
-
-  await applySubscriptionInvoicePeriod({
-    userId,
-    planType: rawPlanType,
-    startsAt,
-    endsAt,
-    stripeEventId: eventId,
-    stripeCustomerId: customerId,
-    stripeSubscriptionId: subscription.id
-  });
-}
-
 export async function POST(req: Request) {
   const signature = req.headers.get("stripe-signature");
 
   if (!signature) {
-    return NextResponse.json(
-      { error: "Missing Stripe signature" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Missing Stripe signature" }, { status: 400 });
   }
 
   const body = await req.text();
@@ -448,30 +341,19 @@ export async function POST(req: Request) {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err) {
     console.error("Webhook signature verification failed:", err);
-    return NextResponse.json(
-      { error: "Invalid Stripe webhook signature" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid Stripe webhook signature" }, { status: 400 });
   }
 
   try {
     const started = await markEventStarted(event.id, event.type);
 
     if (!started) {
-      return NextResponse.json({
-        received: true,
-        duplicate: true
-      });
+      return NextResponse.json({ received: true, duplicate: true });
     }
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       await handleCheckoutCompleted(session, event.id);
-    }
-
-    if (event.type === "invoice.paid") {
-      const invoice = event.data.object as Stripe.Invoice;
-      await handleInvoicePaid(invoice, event.id);
     }
 
     if (event.type === "customer.subscription.deleted") {
@@ -480,7 +362,9 @@ export async function POST(req: Request) {
     }
 
     if (event.type === "invoice.payment_failed") {
-      const invoice = event.data.object as Stripe.Invoice;
+      const invoice = event.data.object as Stripe.Invoice & {
+        subscription?: string | Stripe.Subscription | null;
+      };
 
       const subscriptionId =
         typeof invoice.subscription === "string"
@@ -494,14 +378,9 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({
-      received: true
-    });
+    return NextResponse.json({ received: true });
   } catch (error) {
     console.error("Stripe webhook processing error:", error);
-    return NextResponse.json(
-      { error: "Webhook processing failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });
   }
 }
