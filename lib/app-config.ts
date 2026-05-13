@@ -21,38 +21,100 @@ export const APP_CONFIG = {
   maxUploadBytes: 100 * 1024 * 1024,
 
   allowedMimeTypes: [
+    // images
     "image/jpeg",
     "image/png",
     "image/webp",
     "image/gif",
+    "image/bmp",
+    "image/svg+xml",
+    "image/avif",
 
-    "application/pdf",
-
+    // video
     "video/mp4",
     "video/webm",
-    "video/x-ms-wmv",
-    "video/wmv",
-    "video/x-msvideo",
-    "application/octet-stream",
+    "video/quicktime",
+    "video/ogg",
 
-    "text/plain"
+    // audio
+    "audio/mpeg",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/mp4",
+    "audio/aac",
+    "audio/ogg",
+    "audio/flac",
+
+    // documents
+    "application/pdf",
+    "text/plain",
+    "text/csv",
+    "application/json",
+    "application/xml",
+    "text/markdown",
+
+    // office
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+
+    // open document
+    "application/vnd.oasis.opendocument.text",
+    "application/vnd.oasis.opendocument.spreadsheet",
+    "application/vnd.oasis.opendocument.presentation"
   ],
 
   allowedExtensions: [
+    // images
     "jpg",
     "jpeg",
     "png",
     "webp",
     "gif",
+    "bmp",
+    "svg",
+    "avif",
 
-    "pdf",
-
+    // video
     "mp4",
     "webm",
-    "wmv",
-    "avi",
+    "mov",
+    "m4v",
+    "ogg",
 
-    "txt"
+    // audio
+    "mp3",
+    "wav",
+    "m4a",
+    "aac",
+    "oga",
+    "flac",
+
+    // documents
+    "pdf",
+    "txt",
+    "csv",
+    "json",
+    "xml",
+    "md",
+
+    // office
+    "doc",
+    "docx",
+    "xls",
+    "xlsx",
+    "ppt",
+    "pptx",
+
+    // open document
+    "odt",
+    "ods",
+    "odp"
   ],
 
   antiAbuse: {
@@ -78,7 +140,6 @@ export const APP_CONFIG = {
       allowOneTime: false,
       allowSubscription: false
     },
-
     day: {
       priceEur: 2.5,
       includedFreeViews: 2000,
@@ -88,7 +149,6 @@ export const APP_CONFIG = {
       allowOneTime: true,
       allowSubscription: false
     },
-
     month: {
       priceEur: 12,
       includedFreeViews: 25000,
@@ -98,7 +158,6 @@ export const APP_CONFIG = {
       allowOneTime: true,
       allowSubscription: true
     },
-
     year: {
       priceEur: 99,
       includedFreeViews: 400000,
