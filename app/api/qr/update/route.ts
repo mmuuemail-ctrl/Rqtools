@@ -12,13 +12,8 @@ export const runtime = "nodejs";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl) {
-  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
-}
-
-if (!serviceRoleKey) {
-  throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
-}
+if (!supabaseUrl) throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
+if (!serviceRoleKey) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
@@ -49,48 +44,72 @@ function generatePublicCode() {
   return crypto.randomBytes(18).toString("hex");
 }
 
+function createSafeFileName(filename: string) {
+  const fallback = "file";
+  const normalized = filename
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w.\- ]+/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .trim();
+
+  return normalized || fallback;
+}
+
 function getFileExtension(filename: string) {
   return filename.split(".").pop()?.toLowerCase() || "";
 }
 
-function createSafeFileName(originalName: string) {
-  const ext = getFileExtension(originalName);
-  const nameWithoutExt = originalName.replace(/\.[^/.]+$/, "");
+function isAllowedFile(filename: string, mimeType: string) {
+  const ext = getFileExtension(filename);
+  const normalizedMime = mimeType.toLowerCase().trim();
 
-  const safeBaseName =
-    nameWithoutExt
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9._-]+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^[-_.]+|[-_.]+$/g, "")
-      .toLowerCase()
-      .slice(0, 90) || "soubor";
+  const allowedExtension = APP_CONFIG.allowedExtensions.includes(
+    ext as (typeof APP_CONFIG.allowedExtensions)[number]
+  );
 
-  return ext ? `${safeBaseName}.${ext}` : safeBaseName;
+  if (!allowedExtension) return false;
+
+  if (!normalizedMime) return true;
+
+  const allowedMime = APP_CONFIG.allowedMimeTypes.includes(
+    normalizedMime as (typeof APP_CONFIG.allowedMimeTypes)[number]
+  );
+
+  if (allowedMime) return true;
+
+  if (ext === "wmv") return true;
+  if (ext === "avi") return true;
+
+  return false;
 }
 
-function isAllowedFile(filename: string, mimeType: string) {
-  const safeName = createSafeFileName(filename);
-  const ext = getFileExtension(safeName);
+function getSafeMimeType(filename: string, mimeType: string) {
+  const ext = getFileExtension(filename);
+  const normalizedMime = mimeType.toLowerCase().trim();
 
-  return (
-    APP_CONFIG.allowedExtensions.includes(ext as (typeof APP_CONFIG.allowedExtensions)[number]) &&
-    APP_CONFIG.allowedMimeTypes.includes(
-      mimeType as (typeof APP_CONFIG.allowedMimeTypes)[number]
-    )
-  );
+  if (normalizedMime) return normalizedMime;
+
+  if (ext === "wmv") return "video/x-ms-wmv";
+  if (ext === "avi") return "video/x-msvideo";
+  if (ext === "mp4") return "video/mp4";
+  if (ext === "webm") return "video/webm";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "png") return "image/png";
+  if (ext === "webp") return "image/webp";
+  if (ext === "gif") return "image/gif";
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "txt") return "text/plain";
+
+  return "application/octet-stream";
 }
 
 function parseActivationStartDate(rawValue: string, fallbackIso: string) {
-  if (!rawValue) {
-    return fallbackIso;
-  }
+  if (!rawValue) return fallbackIso;
 
   const parsed = new Date(`${rawValue}T00:00:00.000Z`);
-  if (Number.isNaN(parsed.getTime())) {
-    return fallbackIso;
-  }
+  if (Number.isNaN(parsed.getTime())) return fallbackIso;
 
   return parsed.toISOString();
 }
@@ -252,15 +271,23 @@ export async function POST(request: NextRequest) {
     const uploadedFile = formData.get("file");
 
     if (contentType === "media" && uploadedFile instanceof File) {
+      const originalName = uploadedFile.name || "file";
+      const safeName = createSafeFileName(originalName);
+      const safeMimeType = getSafeMimeType(safeName, uploadedFile.type || "");
+
       if (uploadedFile.size > APP_CONFIG.maxUploadBytes) {
         return NextResponse.json({ error: "Soubor je příliš velký." }, { status: 400 });
       }
 
-      if (!isAllowedFile(uploadedFile.name, uploadedFile.type)) {
-        return NextResponse.json({ error: "Nepovolený typ souboru." }, { status: 400 });
+      if (!isAllowedFile(safeName, safeMimeType)) {
+        return NextResponse.json(
+          {
+            error: `Nepovolený typ souboru. Soubor: ${safeName}, typ: ${safeMimeType || "neznámý"}`
+          },
+          { status: 400 }
+        );
       }
 
-      const safeName = createSafeFileName(uploadedFile.name);
       const storageKey = `${userId}/${qrId}-${Date.now()}-${safeName}`;
 
       if (currentQrRes.data?.file_key) {
@@ -272,7 +299,7 @@ export async function POST(request: NextRequest) {
       const { error: uploadError } = await supabase.storage
         .from("files")
         .upload(storageKey, buffer, {
-          contentType: uploadedFile.type,
+          contentType: safeMimeType,
           upsert: false
         });
 
@@ -284,7 +311,7 @@ export async function POST(request: NextRequest) {
 
       file_name = safeName;
       file_key = storageKey;
-      mime_type = uploadedFile.type;
+      mime_type = safeMimeType;
       public_url = publicData.data.publicUrl;
       file_size = uploadedFile.size;
     }
