@@ -25,9 +25,16 @@ export const APP_CONFIG = {
     "image/png",
     "image/webp",
     "image/gif",
+
     "application/pdf",
+
     "video/mp4",
     "video/webm",
+    "video/x-ms-wmv",
+    "video/wmv",
+    "video/x-msvideo",
+    "application/octet-stream",
+
     "text/plain"
   ],
 
@@ -37,9 +44,14 @@ export const APP_CONFIG = {
     "png",
     "webp",
     "gif",
+
     "pdf",
+
     "mp4",
     "webm",
+    "wmv",
+    "avi",
+
     "txt"
   ],
 
@@ -66,6 +78,7 @@ export const APP_CONFIG = {
       allowOneTime: false,
       allowSubscription: false
     },
+
     day: {
       priceEur: 2.5,
       includedFreeViews: 2000,
@@ -75,6 +88,7 @@ export const APP_CONFIG = {
       allowOneTime: true,
       allowSubscription: false
     },
+
     month: {
       priceEur: 12,
       includedFreeViews: 25000,
@@ -84,6 +98,7 @@ export const APP_CONFIG = {
       allowOneTime: true,
       allowSubscription: true
     },
+
     year: {
       priceEur: 99,
       includedFreeViews: 400000,
