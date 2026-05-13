@@ -90,6 +90,12 @@ type ProfileResponse = {
   };
 };
 
+const MEDIA_ALLOWED_EXTENSIONS_TEXT =
+  "Obrázky: jpg, jpeg, png, webp, gif, bmp, svg, avif\n" +
+  "Video: mp4, webm, mov, m4v, ogg\n" +
+  "Audio: mp3, wav, m4a, aac, ogg, oga, flac\n" +
+  "Dokumenty: pdf, txt, csv, json, xml, md, doc, docx, xls, xlsx, ppt, pptx, odt, ods, odp";
+
 function formatDate(value: string | null) {
   if (!value) return "—";
   const d = new Date(value);
@@ -634,11 +640,7 @@ export default function DashboardPage() {
         body: formData
       });
 
-      console.log("MEDIA RESPONSE STATUS", res.status);
-
       const dataJson = await res.json();
-
-      console.log("MEDIA RESPONSE JSON", dataJson);
 
       if (!res.ok) {
         setMessage(dataJson?.error || "Media se nepodařilo uložit.");
@@ -1315,6 +1317,7 @@ export default function DashboardPage() {
         <div style={styles.modalOverlay}>
           <div style={styles.modalBox}>
             <div style={styles.modalTitle}>Vybrat media</div>
+
             <input
               type="file"
               onChange={(e: ChangeEvent<HTMLInputElement>) => {
@@ -1323,9 +1326,18 @@ export default function DashboardPage() {
               style={styles.fileInput}
               disabled={savingMedia}
             />
+
             <div style={styles.selectedFileBox}>
-              {draftFile ? normalizeFileNameForUpload(draftFile.name) : "Zatím není vybraný žádný soubor."}
+              {draftFile
+                ? normalizeFileNameForUpload(draftFile.name)
+                : "Zatím není vybraný žádný soubor."}
             </div>
+
+            <div style={styles.mediaAllowedBox}>
+              <div style={styles.mediaAllowedTitle}>Povolené typy souborů</div>
+              <div style={styles.mediaAllowedText}>{MEDIA_ALLOWED_EXTENSIONS_TEXT}</div>
+            </div>
+
             <div style={styles.modalButtons}>
               <button type="button" style={styles.modalCancelButton} onClick={closeMediaModal} disabled={savingMedia}>
                 zrusit
@@ -1981,6 +1993,28 @@ const styles: Record<string, CSSProperties> = {
     color: "#000000",
     wordBreak: "break-word",
     textAlign: "center"
+  },
+  mediaAllowedBox: {
+    width: "100%",
+    border: "6px solid #000000",
+    borderRadius: 34,
+    padding: 14,
+    boxSizing: "border-box",
+    background: "#ffffff",
+    color: "#000000"
+  },
+  mediaAllowedTitle: {
+    fontSize: 20,
+    fontWeight: 900,
+    marginBottom: 8,
+    textAlign: "center"
+  },
+  mediaAllowedText: {
+    fontSize: 16,
+    fontWeight: 800,
+    lineHeight: 1.35,
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word"
   },
   modalButtons: {
     display: "grid",
