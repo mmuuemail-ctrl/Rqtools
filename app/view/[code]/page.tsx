@@ -139,8 +139,10 @@ export default function PublicQrViewPage({ params }: PageProps) {
         extension: "",
         isImage: false,
         isVideo: false,
+        isAudio: false,
         isPdf: false,
-        isTextLike: false
+        isTextLike: false,
+        isOfficeLike: false
       };
     }
 
@@ -151,14 +153,29 @@ export default function PublicQrViewPage({ params }: PageProps) {
       extension,
       isImage:
         mimeType.startsWith("image/") ||
-        ["jpg", "jpeg", "png", "webp", "gif"].includes(extension),
+        ["jpg", "jpeg", "png", "webp", "gif", "bmp", "svg", "avif"].includes(extension),
       isVideo:
         mimeType.startsWith("video/") ||
-        ["mp4", "webm"].includes(extension),
+        ["mp4", "webm", "mov", "m4v", "ogg"].includes(extension),
+      isAudio:
+        mimeType.startsWith("audio/") ||
+        ["mp3", "wav", "m4a", "aac", "ogg", "oga", "flac", "webm"].includes(extension),
       isPdf:
         mimeType === "application/pdf" || extension === "pdf",
       isTextLike:
-        mimeType.startsWith("text/") || extension === "txt"
+        mimeType.startsWith("text/") || ["txt", "csv", "json", "xml", "md"].includes(extension),
+      isOfficeLike:
+        [
+          "doc",
+          "docx",
+          "xls",
+          "xlsx",
+          "ppt",
+          "pptx",
+          "odt",
+          "ods",
+          "odp"
+        ].includes(extension)
     };
   }, [payload]);
 
@@ -233,6 +250,21 @@ export default function PublicQrViewPage({ params }: PageProps) {
       );
     }
 
+    if (fileInfo.isAudio) {
+      return (
+        <main style={styles.audioScreen}>
+          <div style={styles.audioCard}>
+            <div style={styles.audioTitle}>{payload.title || "Audio"}</div>
+            <div style={styles.fileName}>{payload.fileName || "Audio soubor"}</div>
+            <audio src={payload.fileUrl} controls autoPlay style={styles.audio} />
+            <a href={payload.fileUrl} target="_blank" rel="noreferrer" style={styles.fileButton}>
+              Otevřít / stáhnout audio
+            </a>
+          </div>
+        </main>
+      );
+    }
+
     if (fileInfo.isPdf || fileInfo.isTextLike) {
       return (
         <main style={styles.documentScreen}>
@@ -245,17 +277,29 @@ export default function PublicQrViewPage({ params }: PageProps) {
       );
     }
 
+    if (fileInfo.isOfficeLike) {
+      return (
+        <main style={styles.screen}>
+          <div style={styles.fileCard}>
+            <div style={styles.fileTitle}>{payload.title || "Dokument"}</div>
+            <div style={styles.fileName}>{payload.fileName || "Dokument"}</div>
+            <div style={styles.fileHint}>
+              Tento typ dokumentu se v prohlížeči nemusí vždy zobrazit přímo. Otevři ho nebo stáhni.
+            </div>
+            <a href={payload.fileUrl} target="_blank" rel="noreferrer" style={styles.fileButton}>
+              Otevřít dokument
+            </a>
+          </div>
+        </main>
+      );
+    }
+
     return (
       <main style={styles.screen}>
         <div style={styles.fileCard}>
           <div style={styles.fileTitle}>{payload.title || "Soubor"}</div>
           <div style={styles.fileName}>{payload.fileName || "Soubor bez názvu"}</div>
-          <a
-            href={payload.fileUrl}
-            target="_blank"
-            rel="noreferrer"
-            style={styles.fileButton}
-          >
+          <a href={payload.fileUrl} target="_blank" rel="noreferrer" style={styles.fileButton}>
             Otevřít soubor
           </a>
         </div>
@@ -396,6 +440,39 @@ const styles: Record<string, CSSProperties> = {
     objectFit: "contain",
     display: "block"
   },
+  audioScreen: {
+    minHeight: "100vh",
+    width: "100%",
+    margin: 0,
+    padding: 24,
+    boxSizing: "border-box",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#111827",
+    color: "#ffffff"
+  },
+  audioCard: {
+    width: "100%",
+    maxWidth: 760,
+    borderRadius: 24,
+    padding: 24,
+    boxSizing: "border-box",
+    background: "#ffffff",
+    color: "#111111",
+    textAlign: "center",
+    display: "flex",
+    flexDirection: "column",
+    gap: 16
+  },
+  audioTitle: {
+    fontSize: 28,
+    fontWeight: 800,
+    wordBreak: "break-word"
+  },
+  audio: {
+    width: "100%"
+  },
   documentScreen: {
     minHeight: "100vh",
     width: "100%",
@@ -431,6 +508,11 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 18,
     opacity: 0.75,
     wordBreak: "break-word"
+  },
+  fileHint: {
+    fontSize: 16,
+    lineHeight: 1.45,
+    color: "#475569"
   },
   fileButton: {
     display: "inline-block",
