@@ -49,8 +49,31 @@ function generatePublicCode() {
   return crypto.randomBytes(18).toString("hex");
 }
 
+function getFileExtension(filename: string) {
+  return filename.split(".").pop()?.toLowerCase() || "";
+}
+
+function createSafeFileName(originalName: string) {
+  const ext = getFileExtension(originalName);
+  const nameWithoutExt = originalName.replace(/\.[^/.]+$/, "");
+
+  const safeBaseName =
+    nameWithoutExt
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9._-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^[-_.]+|[-_.]+$/g, "")
+      .toLowerCase()
+      .slice(0, 90) || "soubor";
+
+  return ext ? `${safeBaseName}.${ext}` : safeBaseName;
+}
+
 function isAllowedFile(filename: string, mimeType: string) {
-  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  const safeName = createSafeFileName(filename);
+  const ext = getFileExtension(safeName);
+
   return (
     APP_CONFIG.allowedExtensions.includes(ext as (typeof APP_CONFIG.allowedExtensions)[number]) &&
     APP_CONFIG.allowedMimeTypes.includes(
@@ -237,9 +260,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Nepovolený typ souboru." }, { status: 400 });
       }
 
-      const safeName = uploadedFile.name
-        .replace(/[^\w.\- ]+/g, "")
-        .replace(/\s+/g, "-");
+      const safeName = createSafeFileName(uploadedFile.name);
       const storageKey = `${userId}/${qrId}-${Date.now()}-${safeName}`;
 
       if (currentQrRes.data?.file_key) {
